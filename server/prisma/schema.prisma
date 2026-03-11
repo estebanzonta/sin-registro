@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Category {
+  id            String         @id @default(uuid())
+  name          String
+  slug          String         @unique
+  garmentModels GarmentModel[]
+}
+
+model GarmentModel {
+  id               String               @id @default(uuid())
+  categoryId       String
+  category         Category             @relation(fields: [categoryId], references: [id])
+  name             String
+  slug             String               @unique
+  description      String?
+  basePrice        Float
+  active           Boolean              @default(true)
+  frontMockupUrl   String?
+  backMockupUrl    String?
+  sizes            GarmentModelSize[]
+  colors           GarmentModelColor[]
+  blankStocks      BlankStock[]
+  orderItems       OrderItem[]
+}
+
+model Size {
+  id               String               @id @default(uuid())
+  name             String               @unique // e.g. S, M, L, XL
+  garmentModels    GarmentModelSize[]
+  blankStocks      BlankStock[]
+  orderItems       OrderItem[]
+}
+
+model GarmentModelSize {
+  id             String       @id @default(uuid())
+  garmentModelId String
+  garmentModel   GarmentModel @relation(fields: [garmentModelId], references: [id])
+  sizeId         String
+  size           Size         @relation(fields: [sizeId], references: [id])
+  active         Boolean      @default(true)
+
+  @@unique([garmentModelId, sizeId])
+}
+
+model Color {
+  id             String               @id @default(uuid())
+  name           String               @unique
+  hex            String
+  active         Boolean              @default(true)
+  garmentModels  GarmentModelColor[]
+  blankStocks    BlankStock[]
+  orderItems     OrderItem[]
+}
+
+model GarmentModelColor {
+  id             String       @id @default(uuid())
+  garmentModelId String
+  garmentModel   GarmentModel @relation(fields: [garmentModelId], references: [id])
+  colorId        String
+  color          Color        @relation(fields: [colorId], references: [id])
+  active         Boolean      @default(true)
+
+  @@unique([garmentModelId, colorId])
+}
+
+model BlankStock {
+  id             String       @id @default(uuid())
+  garmentModelId String
+  garmentModel   GarmentModel @relation(fields: [garmentModelId], references: [id])
+  colorId        String
+  color          Color        @relation(fields: [colorId], references: [id])
+  sizeId         String
+  size           Size         @relation(fields: [sizeId], references: [id])
+  quantity       Int          @default(0)
+
+  @@unique([garmentModelId, colorId, sizeId])
+}
+
+model Collection {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // e.g. 'fixed' | 'capsule'
+  description String?
+  active      Boolean  @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  designs     Design[]
+}
+
+model Design {
+  id            String   @id @default(uuid())
+  collectionId  String
+  collection    Collection @relation(fields: [collectionId], references: [id])
+  name          String
+  slug          String   @unique
+  description   String?
+  imageUrl      String
+  active        Boolean  @default(true)
+  limited       Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  transferSizes DesignTransferSize[]
+  orderItems    OrderItem[]
+}
+
+model DesignTransferSize {
+  id          String   @id @default(uuid())
+  designId    String
+  design      Design   @relation(fields: [designId], references: [id])
+  sizeCode    String   // e.g. 'S', 'M', 'L', 'small', 'medium', 'large'
+  widthCm     Float?
+  heightCm    Float?
+  stock       Int      @default(0)
+  extraPrice  Float    @default(0)
+
+  @@unique([designId, sizeCode])
+}
+
+model LogoTransferStock {
+  id       String @id @default(uuid())
+  sizeCode String @unique // e.g. 'small', 'medium'
+  stock    Int    @default(0)
+}
+
+model Placement {
+  id   String @id @default(uuid())
+  name String @unique // e.g. 'front_big', 'back_big', 'logo_front', 'logo_back', 'logo_sleeve'
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  customerName  String
+  customerEmail String
+  totalPrice    Float
+  status        String      @default("pending")
+  createdAt     DateTime    @default(now())
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id                       String       @id @default(uuid())
+  orderId                  String
+  order                    Order        @relation(fields: [orderId], references: [id])
+  garmentModelId           String
+  garmentModel             GarmentModel @relation(fields: [garmentModelId], references: [id])
+  colorId                  String
+  color                    Color        @relation(fields: [colorId], references: [id])
+  sizeId                   String
+  size                     Size         @relation(fields: [sizeId], references: [id])
+  designId                 String?
+  design                   Design?      @relation(fields: [designId], references: [id])
+  customDesignUrl          String?
+  transferSizeCode         String?
+  mainPlacement            String?
+  logoPlacement            String?
+  unitPrice                Float
+  configurationSnapshotJson String       // JSON string to freeze details
+}

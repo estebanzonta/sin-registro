@@ -1,0 +1,822 @@
+:root {
+  --font-family: 'Outfit', sans-serif;
+  --bg-color: #f3f4f6;
+  --panel-bg: rgba(255, 255, 255, 0.75);
+  --panel-border: rgba(255, 255, 255, 0.5);
+  --text-dark: #1f2937;
+  --text-light: #6b7280;
+  --primary-color: #111827;
+  --primary-hover: #374151;
+  --accent-color: #3b82f6;
+  --transition-speed: 0.3s;
+  --radius-lg: 16px;
+  --radius-md: 10px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--bg-color);
+  color: var(--text-dark);
+  min-height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Layout */
+.app-container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* SPA Screen Management */
+.screen {
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--bg-color);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  z-index: 1;
+}
+
+.screen.hide {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px);
+}
+
+.active-screen {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  z-index: 2;
+}
+
+/* ---------------------------------
+   SCREEN 1: CATEGORY SELECTION
+   --------------------------------- */
+#screenCategory {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: #113f27;
+  /* Unified Starbucks Green */
+  padding: 2rem;
+}
+
+.category-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.category-header h1 {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: white;
+}
+
+.category-header p {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.category-grid {
+  display: flex;
+  gap: 2rem;
+  width: 100%;
+  max-width: 800px;
+}
+
+.cat-btn {
+  flex: 1;
+  height: 200px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+  /* Minimalist glass */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 1.5rem;
+  font-weight: 300;
+  /* Lighter weight for modern look */
+  letter-spacing: 2px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cat-btn i {
+  font-size: 4rem;
+  color: var(--accent-color);
+}
+
+.cat-btn:hover:not(.disabled) {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: white;
+}
+
+.cat-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cat-btn small {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
+  display: block;
+  margin-top: 0.5rem;
+  letter-spacing: 0;
+}
+
+/* ------------------------------------
+   SCREEN 2: PRODUCT SELECTION
+   ------------------------------------ */
+#screenProduct {
+  background: #113f27;
+  /* Starbucks-like green */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.product-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 1.5rem;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 10;
+}
+
+.back-btn,
+.cart-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  font-size: 1.25rem;
+  color: var(--text-dark);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.2s;
+}
+
+.back-btn:hover,
+.cart-btn:hover {
+  transform: scale(1.05);
+}
+
+/* Carousel */
+.carousel-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.carousel-nav-btn {
+  position: absolute;
+  top: 40%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  /* Updated to sit above the z-index 10 container */
+  transition: all 0.3s;
+}
+
+.carousel-nav-btn:hover {
+  background: white;
+  color: #113f27;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.carousel-nav-btn.prev {
+  left: 10px;
+}
+
+.carousel-nav-btn.next {
+  right: 10px;
+}
+
+.carousel-container {
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  /* Hide scrollbar Firefox */
+  -ms-overflow-style: none;
+  /* Hide scrollbar IE/Edge */
+  padding-bottom: 40vh;
+  /* Matches the exact height of the slimmer card */
+  position: relative;
+  z-index: 10;
+  pointer-events: none;
+  /* Let clicks pass through to product-card */
+}
+
+.carousel-container::-webkit-scrollbar {
+  display: none;
+  /* Hide scrollbar Chrome/Safari */
+}
+
+.carousel-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  scroll-snap-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 2rem;
+  pointer-events: auto;
+  /* Re-enable swipe over the slide */
+}
+
+.carousel-slide img {
+  width: 90%;
+  max-width: 550px;
+  max-height: 55vh;
+  /* Allow it to get bigger */
+  object-fit: contain;
+  filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.4));
+  transform: translateY(8vh);
+  /* Push down into the card */
+  pointer-events: none;
+  /* Prevent the image bounding box from blocking card clicks */
+  transition: transform 0.3s;
+}
+
+/* Product Info Card */
+.product-card {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 600px;
+  /* Constrained to match the image center */
+  height: 48vh;
+  background: white;
+  border-radius: 40px 40px 0 0;
+  padding: 5rem 1.5rem 1.5rem;
+  /* 5rem top padding creates safe zone for overlap */
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+}
+
+.qty-selector {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1b4b32;
+  /* darker green */
+  color: white;
+  display: flex;
+  align-items: center;
+  border-radius: 30px;
+  padding: 0.5rem 1rem;
+  gap: 1.5rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.qty-selector button {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0 0.5rem;
+}
+
+.qty-selector span {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.prod-info-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.prod-info-top h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--primary-color);
+  max-width: 90%;
+  line-height: 1.1;
+  margin-top: 5px;
+}
+
+.prod-price {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.prod-meta {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.meta-item i {
+  margin-right: 0.25rem;
+}
+
+.prod-desc {
+  color: var(--text-light);
+  line-height: 1.5;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  flex: 1;
+  /* Push CTA to bottom */
+}
+
+.size-selector h3 {
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+  color: var(--primary-color);
+}
+
+.chip-group {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.size-chip {
+  padding: 0.5rem 1.25rem;
+  border-radius: 20px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.size-chip:hover {
+  border-color: var(--text-dark);
+}
+
+.size-chip.active {
+  background: var(--text-dark);
+  color: white;
+  border-color: var(--text-dark);
+}
+
+.cta-btn {
+  margin-top: auto;
+  padding: 1.25rem;
+  font-size: 1.125rem;
+  border-radius: 30px;
+}
+
+.cta-btn:disabled {
+  background: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* ------------------------------------
+   SCREEN 3: CUSTOMIZER (Floating UI)
+   ------------------------------------ */
+#screenCustomizer {
+  background: #113f27;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Header Flotante */
+.floating-header {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-titles h1 {
+  font-size: 1.5rem;
+  color: white;
+  line-height: 1.2;
+}
+
+.header-titles p {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Área principal (ahora ocupa fondo completo) */
+/* Botones de Acción (Utilities Restauradas) */
+.action-btn {
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.action-btn.primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.action-btn.primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.action-btn.outline {
+  background: transparent;
+  border: 1px solid var(--text-light);
+  color: var(--text-dark);
+}
+
+.action-btn.outline:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.w-full {
+  width: 100%;
+}
+
+.mt-2 {
+  margin-top: 1rem;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.preview-area.fullscreen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* Push slightly up to balance with bottom card */
+  padding-bottom: 25vh;
+  z-index: 10;
+  pointer-events: none;
+  /* Let clicks pass through empty space */
+}
+
+/* UI Flotante: Isletas */
+.floating-controls {
+  position: absolute;
+  top: 50%;
+  right: 1.5rem;
+  transform: translateY(-80%);
+  /* Centered above bottom card */
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  z-index: 50;
+  /* Don't block interactions behind it implicitly */
+  pointer-events: none;
+}
+
+.floating-island {
+  pointer-events: auto;
+  /* Re-enable clicks inside island */
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.5rem;
+  display: flex;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* Colores Verticales */
+.color-island {
+  flex-direction: column;
+  border-radius: 40px;
+  gap: 0.5rem;
+}
+
+.color-orb {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background-color: var(--btn-color);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.color-orb:hover {
+  transform: scale(1.1);
+}
+
+.color-orb.active {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8), 0 0 0 5px var(--btn-color);
+  transform: scale(1.1);
+}
+
+/* Vistas: Pill-shaped toggle */
+.view-island {
+  flex-direction: column;
+  border-radius: 30px;
+  padding: 4px;
+}
+
+.pill-btn {
+  padding: 0.75rem 0.5rem;
+  writing-mode: vertical-rl;
+  /* Text flows top to bottom */
+  text-orientation: mixed;
+  border: none;
+  background: transparent;
+  border-radius: 20px;
+  font-family: inherit;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.3s;
+  letter-spacing: 2px;
+}
+
+.pill-btn.active {
+  background: white;
+  color: #113f27;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Tarjeta Inferior de Configuración (Overlap) */
+.customizer-bottom-card {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 600px;
+  height: 30vh;
+  background: white;
+  border-radius: 40px 40px 0 0;
+  padding: 2rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: row;
+  /* Horizontal split between upload and price */
+  align-items: stretch;
+  gap: 2rem;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+  /* Image is z-index 10, so it naturally OVERLAPS this card */
+  pointer-events: auto;
+  /* Ensure clickable */
+}
+
+.upload-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.upload-section h3 {
+  font-size: 1.1rem;
+  color: var(--primary-color);
+}
+
+.upload-section p {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  margin-bottom: 0.5rem;
+}
+
+.upload-zone.minimal {
+  border: 2px dashed rgba(0, 0, 0, 0.15);
+  border-radius: 20px;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(0, 0, 0, 0.02);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+}
+
+.upload-zone.minimal i {
+  font-size: 2rem;
+  color: #113f27;
+  opacity: 0.5;
+}
+
+.upload-zone.minimal:hover {
+  border-color: #113f27;
+  background: rgba(17, 63, 39, 0.05);
+
+  i {
+    opacity: 1;
+  }
+}
+
+.price-footer {
+  flex: 0.8;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  padding-left: 2rem;
+}
+
+.price-estimate p {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.price-estimate h3 {
+  font-size: 1.8rem;
+  color: var(--primary-color);
+}
+
+
+
+.tshirt-container {
+  position: relative;
+  width: 600px;
+  max-width: 90%;
+  height: 600px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  /* Let clicks pass through overlaps */
+}
+
+.tshirt-base {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* Print Area (Donde va el drag & drop) */
+.print-area {
+  position: absolute;
+  top: 25%;
+  left: 30%;
+  width: 40%;
+  height: 50%;
+  border: 1px dashed rgba(0, 0, 0, 0.1);
+  z-index: 5;
+  transition: border 0.3s;
+  overflow: hidden;
+  pointer-events: none;
+  /* Asegurar que el diseño no se salga de los límites de la remera */
+}
+
+.print-area:hover,
+.print-area.drag-over {
+  border-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Logo Wrapper */
+.logo-wrapper {
+  position: absolute;
+  display: inline-block;
+  cursor: move;
+  /* Posición inicial por defecto al centro */
+  transform: translate(-50%, -50%);
+  user-select: none;
+  touch-action: none;
+  pointer-events: auto;
+  /* Logo blocks clicks underneath, is draggable */
+}
+
+.draggable-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* Para que los eventos pasen al wrapper */
+}
+
+/* Resize Handle */
+.resize-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border: 2px solid var(--accent-color);
+  border-radius: 50%;
+  right: -8px;
+  bottom: -8px;
+  cursor: se-resize;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.logo-wrapper:hover {
+  outline: 1px dashed var(--accent-color);
+}
+
+.logo-wrapper:hover .resize-handle {
+  opacity: 1;
+}
+
+/* Activo / Arrastrando */
+.logo-wrapper:active {
+  cursor: grabbing;
+}
+
+/* Respuestas móviles */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .preview-area.fullscreen {
+    padding-bottom: 40vh;
+    /* More padding needed on mobile since card stacks vertically */
+  }
+
+  /* Make bottom card stack vertically on mobile */
+  .customizer-bottom-card {
+    height: 45vh;
+    flex-direction: column;
+    padding: 1.5rem;
+    gap: 1rem;
+  }
+
+  .price-footer {
+    border-left: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    padding-left: 0;
+    padding-top: 1rem;
+  }
+
+  .preview-area {
+    min-height: 400px;
+  }
+
+  .tshirt-container {
+    width: 100%;
+    height: 400px;
+  }
+}

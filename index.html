@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Personalizador de Remeras Premium</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+
+<body>
+
+  <!-- PANTALLA 1: CATEGORÍAS -->
+  <section id="screenCategory" class="screen active-screen">
+    <div class="category-header">
+      <h1>Sin Registro</h1>
+      <p>Elegí qué querés personalizar hoy</p>
+    </div>
+    <div class="category-grid">
+      <button class="cat-btn" id="btnCatIndumentaria">
+        <span>INDUMENTARIA</span>
+      </button>
+      <button class="cat-btn disabled" id="btnCatAccesorios">
+        <span>ACCESORIOS <br><small>(Próximamente)</small></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- PANTALLA 2: SELECCIÓN DE PRODUCTO (Starbucks Style) -->
+  <section id="screenProduct" class="screen hide">
+
+    <!-- Top header with back button -->
+    <header class="product-header">
+      <button class="back-btn" id="btnBackToCat"><i class="fa-solid fa-chevron-left"></i></button>
+      <button class="cart-btn"><i class="fa-solid fa-cart-shopping"></i></button>
+    </header>
+
+    <!-- Horizontal Scrollable Carousel for Images -->
+    <div class="carousel-wrapper">
+      <button class="carousel-nav-btn prev" id="btnCarouselPrev"><i class="fa-solid fa-chevron-left"></i></button>
+      <button class="carousel-nav-btn next" id="btnCarouselNext"><i class="fa-solid fa-chevron-right"></i></button>
+
+      <div class="carousel-container" id="productCarousel">
+        <div class="carousel-slide" data-index="0">
+          <img src="/model-oversize.png" alt="Remera Oversize" />
+        </div>
+        <div class="carousel-slide" data-index="1">
+          <img src="/model-musculosa.png" alt="Musculosa" />
+        </div>
+        <div class="carousel-slide" data-index="2">
+          <img src="/model-crop.png" alt="Top Crop" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom White Card -->
+    <div class="product-card">
+      <h2 id="prodTitle">REMERA OVERSIZE</h2>
+
+      <div class="prod-meta">
+        <div class="meta-item"><i class="fa-solid fa-star" style="color:#fbbf24;"></i> 4.8</div>
+        <div class="meta-item"><i class="fa-solid fa-leaf" style="color:#22c55e;"></i> 100% Algodón</div>
+        <div class="meta-item"><i class="fa-regular fa-clock"></i> 5-10 Días</div>
+      </div>
+
+      <p class="prod-desc" id="prodDesc">
+        Remera de corte amplio y relajado, ideal para un estilo urbano. Hecha con algodón premium de alto gramaje para
+        máxima durabilidad y confort.
+      </p>
+
+      <!-- Size Chips -->
+      <div class="size-selector">
+        <h3>Talles Disponibles</h3>
+        <div class="chip-group" id="sizeChips">
+          <button class="size-chip">S</button>
+          <button class="size-chip">M</button>
+          <button class="size-chip">L</button>
+          <button class="size-chip">XL</button>
+        </div>
+      </div>
+
+      <button class="action-btn primary w-full cta-btn" id="btnContinueCustomizer" disabled>
+        Continuar
+      </button>
+    </div>
+  </section>
+
+  <!-- PANTALLA 3: EL PERSONALIZADOR -->
+  <section id="screenCustomizer" class="app-container screen hide">
+
+    <!-- Header Flotante -->
+    <header class="floating-header">
+      <button class="back-btn" id="btnBackToProduct"><i class="fa-solid fa-chevron-left"></i></button>
+      <div class="header-titles">
+        <h1>Personalizar</h1>
+        <p id="customizerModelLabel">Remera Oversize</p>
+      </div>
+    </header>
+
+    <!-- Área principal de previsualización (Ocupa Toda la Pantalla) -->
+    <main class="preview-area fullscreen">
+      <div class="tshirt-container" id="tshirtContainer">
+
+        <!-- Capa Base -->
+        <img src="/tshirt-white-front.png" class="tshirt-base" id="tshirtBase" alt="T-Shirt" />
+
+        <!-- Áreas de Impresión -->
+        <div class="print-area" id="printAreaFront"></div>
+        <div class="print-area hidden" id="printAreaBack"></div>
+
+      </div>
+    </main>
+
+    <!-- UI Flotante: Isletas de Control -->
+    <aside class="floating-controls">
+
+      <!-- Isleta 1: Selector de Vistas -->
+      <div class="floating-island view-island">
+        <button class="pill-btn active" id="btnFront">Frente</button>
+        <button class="pill-btn" id="btnBack">Espalda</button>
+      </div>
+
+      <!-- Isleta 2: Selector de Colores (Vertical a la derecha) -->
+      <div class="floating-island color-island">
+        <button class="color-orb active" data-color="white" style="--btn-color: #ffffff;" aria-label="Blanco"></button>
+        <button class="color-orb" data-color="black" style="--btn-color: #1a1a1a;" aria-label="Negro"></button>
+      </div>
+
+    </aside>
+
+    <!-- Tarjeta Inferior de Herramientas -->
+    <div class="customizer-bottom-card">
+      <div class="upload-section">
+        <h3>Subí tu diseño</h3>
+        <p>Arrastrá una imagen o hacé clic</p>
+        <div class="upload-zone minimal" id="uploadZone">
+          <input type="file" id="fileInput" accept="image/png, image/jpeg, image/webp" hidden />
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+        </div>
+        <button class="action-btn outline mt-2 hidden" id="btnRemoveLogo">Quitar Diseño Actual</button>
+      </div>
+
+      <div class="price-footer">
+        <div class="price-estimate">
+          <p>Total Estimado</p>
+          <h3>$25.000</h3>
+        </div>
+        <button class="action-btn primary w-full" id="btnBuyNow">Comprar Ahora</button>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>
