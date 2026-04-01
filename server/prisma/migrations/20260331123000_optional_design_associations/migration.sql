@@ -1,0 +1,3 @@
+ALTER TABLE "Design"
+ALTER COLUMN "collectionId" DROP NOT NULL,
+ALTER COLUMN "designCategoryId" DROP NOT NULL;

@@ -1,142 +1,534 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Image as ImageIcon, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Image as ImageIcon, Layers3, Pencil, Plus, X } from 'lucide-react';
+
+type DesignCategory = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+type Collection = {
+  id: string;
+  name: string;
+  type: 'fixed' | 'capsule';
+  startsAt?: string | null;
+  endsAt?: string | null;
+};
+
+type Placement = {
+  id: string;
+  code: string;
+  name: string;
+  kind: 'print' | 'logo';
+};
+
+type TransferSizeForm = {
+  sizeCode: string;
+  widthCm: string;
+  heightCm: string;
+  stock: string;
+  extraPrice: string;
+};
+
+type DesignRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  code: string;
+  description?: string | null;
+  imageUrl: string;
+  limited: boolean;
+  active: boolean;
+  collectionId?: string | null;
+  designCategoryId?: string | null;
+  collection?: Collection | null;
+  designCategory?: DesignCategory | null;
+  placements?: Array<{ placement: Placement }>;
+  transferSizes?: Array<{
+    id: string;
+    sizeCode: string;
+    widthCm: number;
+    heightCm: number;
+    stock: number;
+    extraPrice: number;
+  }>;
+};
+
+type DesignForm = {
+  collectionId: string;
+  designCategoryId: string;
+  name: string;
+  slug: string;
+  code: string;
+  description: string;
+  imageUrl: string;
+  active: boolean;
+  placementCodes: string[];
+  transferSizes: TransferSizeForm[];
+};
+
+const DEFAULT_TRANSFER_SIZES: TransferSizeForm[] = [
+  { sizeCode: 'chico', widthCm: '18', heightCm: '18', stock: '20', extraPrice: '0' },
+  { sizeCode: 'mediano', widthCm: '28', heightCm: '28', stock: '20', extraPrice: '0' },
+  { sizeCode: 'grande', widthCm: '36', heightCm: '36', stock: '20', extraPrice: '0' },
+];
+
+const EMPTY_COLLECTION = { name: '', description: '', startsAt: '', endsAt: '' };
+const EMPTY_CATEGORY = { name: '', code: '' };
+
+function buildEmptyForm(defaultCategoryId = ''): DesignForm {
+  return {
+    collectionId: '',
+    designCategoryId: defaultCategoryId,
+    name: '',
+    slug: '',
+    code: '',
+    description: '',
+    imageUrl: '',
+    active: true,
+    placementCodes: ['FRONT'],
+    transferSizes: DEFAULT_TRANSFER_SIZES.map((item) => ({ ...item })),
+  };
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error(`No se pudo leer ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+function mapTransferSizes(items?: DesignRecord['transferSizes']): TransferSizeForm[] {
+  if (!items?.length) {
+    return DEFAULT_TRANSFER_SIZES.map((item) => ({ ...item }));
+  }
+
+  return items.map((item) => ({
+    sizeCode: item.sizeCode,
+    widthCm: String(item.widthCm),
+    heightCm: String(item.heightCm),
+    stock: String(item.stock),
+    extraPrice: String(item.extraPrice),
+  }));
+}
 
 export default function DesignsAdmin() {
-  const [designs, setDesigns] = useState<any[]>([]);
-  const [newDesign, setNewDesign] = useState({ name: '', slug: '', description: '', imageUrl: '', limited: false });
-  const [collections, setCollections] = useState<any[]>([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState('');
+  const [designs, setDesigns] = useState<DesignRecord[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [designCategories, setDesignCategories] = useState<DesignCategory[]>([]);
+  const [placements, setPlacements] = useState<Placement[]>([]);
+  const [form, setForm] = useState<DesignForm>(() => buildEmptyForm());
+  const [editingDesignId, setEditingDesignId] = useState<string | null>(null);
+  const [newCollection, setNewCollection] = useState(EMPTY_COLLECTION);
+  const [newCategory, setNewCategory] = useState(EMPTY_CATEGORY);
+  const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchDesigns();
-    fetchCollections();
+    void loadData();
   }, []);
 
-  const fetchDesigns = async () => {
-    try {
-      const res = await axios.get('/api/admin/designs');
-      setDesigns(res.data);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const printPlacements = useMemo(
+    () => placements.filter((item) => item.kind === 'print' && (item.code === 'FRONT' || item.code === 'BACK')),
+    [placements]
+  );
+  const capsuleCollections = useMemo(() => collections.filter((item) => item.type === 'capsule'), [collections]);
+  const selectedCollection = useMemo(
+    () => capsuleCollections.find((item) => item.id === form.collectionId) || null,
+    [capsuleCollections, form.collectionId]
+  );
+  const isCapsuleDesign = Boolean(selectedCollection);
 
-  const fetchCollections = async () => {
-    try {
-      // Mocking fetch or fetching via real endpoint if it exists
-      // If we don't have a /collections endpoint, we'll fake the dropdown logic for MVP
-      setCollections([{ id: 'TODO-COL-ID', name: 'Colección General' }]);
-      setSelectedCollectionId('TODO-COL-ID');
-    } catch(e) { console.error(e); }
-  };
+  async function loadData() {
+    const [designsResponse, collectionsResponse, catalogResponse] = await Promise.all([
+      axios.get('/api/admin/designs'),
+      axios.get('/api/admin/collections'),
+      axios.get('/api/catalog/init'),
+    ]);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+    const nextCategories = catalogResponse.data.designCategories || [];
+
+    setDesigns(designsResponse.data || []);
+    setCollections(collectionsResponse.data || []);
+    setDesignCategories(nextCategories);
+    setPlacements(catalogResponse.data.placements || []);
+    setForm((current) => {
+      if (editingDesignId) {
+        return current;
+      }
+
+      return current.name || current.code || current.imageUrl
+        ? current
+        : buildEmptyForm(current.designCategoryId || nextCategories[0]?.id || '');
+    });
+  }
+
+  function resetForm(defaultCategoryId = designCategories[0]?.id || '') {
+    setEditingDesignId(null);
+    setForm(buildEmptyForm(defaultCategoryId));
+  }
+
+  function updateTransferSize(index: number, field: keyof TransferSizeForm, value: string) {
+    setForm((current) => ({
+      ...current,
+      transferSizes: current.transferSizes.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+    }));
+  }
+
+  function addTransferSize() {
+    setForm((current) => ({
+      ...current,
+      transferSizes: [...current.transferSizes, { sizeCode: '', widthCm: '', heightCm: '', stock: '0', extraPrice: '0' }],
+    }));
+  }
+
+  function removeTransferSize(index: number) {
+    setForm((current) => ({
+      ...current,
+      transferSizes: current.transferSizes.length === 1 ? current.transferSizes : current.transferSizes.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  }
+
+  function togglePlacement(code: string) {
+    setForm((current) => {
+      const exists = current.placementCodes.includes(code);
+      const placementCodes = exists ? current.placementCodes.filter((item) => item !== code) : [...current.placementCodes, code];
+      return { ...current, placementCodes: placementCodes.length ? placementCodes : current.placementCodes };
+    });
+  }
+
+  function startEditing(design: DesignRecord) {
+    const capsuleCollection = design.collection?.type === 'capsule' ? design.collection : null;
+
+    setEditingDesignId(design.id);
+    setForm({
+      collectionId: capsuleCollection?.id || '',
+      designCategoryId: capsuleCollection ? '' : design.designCategoryId || designCategories[0]?.id || '',
+      name: design.name,
+      slug: design.slug,
+      code: design.code,
+      description: design.description || '',
+      imageUrl: design.imageUrl,
+      active: design.active,
+      placementCodes: design.placements?.map((item) => item.placement.code) || ['FRONT'],
+      transferSizes: mapTransferSizes(design.transferSizes),
+    });
+  }
+
+  async function uploadImage(file: File) {
+    setUploadingImage(true);
     try {
-      await axios.post('/api/admin/designs', {
-        ...newDesign,
-        collectionId: selectedCollectionId 
+      const dataUrl = await readFileAsDataUrl(file);
+      const response = await axios.post('/api/admin/assets/upload', {
+        folder: 'designs',
+        filename: file.name,
+        dataUrl,
       });
-      fetchDesigns();
-      setNewDesign({ name: '', slug: '', description: '', imageUrl: '', limited: false });
-    } catch (e) {
-      console.error(e);
-      alert("Error al guardar el diseño.");
+      setForm((current) => ({ ...current, imageUrl: response.data.url }));
+    } finally {
+      setUploadingImage(false);
     }
-  };
+  }
+
+  async function handleCreateCollection(event: React.FormEvent) {
+    event.preventDefault();
+    await axios.post('/api/admin/collections', {
+      name: newCollection.name,
+      type: 'capsule',
+      description: newCollection.description || undefined,
+      startsAt: newCollection.startsAt || undefined,
+      endsAt: newCollection.endsAt || undefined,
+    });
+    setNewCollection(EMPTY_COLLECTION);
+    await loadData();
+  }
+
+  async function handleCreateCategory(event: React.FormEvent) {
+    event.preventDefault();
+    await axios.post('/api/admin/design-categories', {
+      name: newCategory.name,
+      code: newCategory.code.toUpperCase(),
+    });
+    setNewCategory(EMPTY_CATEGORY);
+    await loadData();
+    if (!form.collectionId) {
+      setForm((current) => ({
+        ...current,
+        designCategoryId: current.designCategoryId || designCategories[0]?.id || '',
+      }));
+    }
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      const payload = {
+        ...form,
+        collectionId: form.collectionId || null,
+        designCategoryId: form.collectionId ? null : form.designCategoryId || null,
+        slug: form.slug || slugify(form.name),
+        transferSizes: form.transferSizes.map((item) => ({
+          sizeCode: item.sizeCode,
+          widthCm: Number(item.widthCm),
+          heightCm: Number(item.heightCm),
+          stock: Number(item.stock),
+          extraPrice: Number(item.extraPrice),
+        })),
+      };
+
+      if (editingDesignId) {
+        await axios.patch(`/api/admin/designs/${editingDesignId}`, payload);
+      } else {
+        await axios.post('/api/admin/designs', payload);
+      }
+
+      await loadData();
+      resetForm(designCategories[0]?.id || '');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.message || error.response?.data?.error;
+        setSaveError(typeof message === 'string' && message.trim() ? message : 'No se pudo guardar el diseno');
+      } else {
+        setSaveError(error instanceof Error ? error.message : 'No se pudo guardar el diseno');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Diseños de Marca</h1>
-          <p className="text-gray-500 mt-1">Sube y organiza los diseños gráficos disponibles para estampar.</p>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Disenos de marca</h1>
+        <p className="mt-1 text-gray-500">Edita estampas fijas por categoria y capsulas limitadas como modelo de venta separado.</p>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
-        <h2 className="text-lg font-bold mb-5 flex items-center gap-2 text-gray-800"><Plus size={20} className="text-pink-500"/> Subir Nuevo Diseño</h2>
-        <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Diseño</label>
-            <input className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-pink-500 outline-none transition-all" placeholder="Ej. Calavera Neo" value={newDesign.name} onChange={e => setNewDesign({...newDesign, name: e.target.value})} required/>
+      <div className="mb-8 grid gap-6 xl:grid-cols-2">
+        <form onSubmit={handleCreateCategory} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-800">
+            <Layers3 size={20} className="text-indigo-500" /> Nueva categoria fija
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <input className="rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="Ej. Anime" value={newCategory.name} onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))} required />
+            <input className="rounded-xl border border-gray-200 bg-gray-50 p-3 uppercase" placeholder="ANI" value={newCategory.code} onChange={(event) => setNewCategory((current) => ({ ...current, code: event.target.value.toUpperCase() }))} required />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
-            <input className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-pink-500 outline-none transition-all" placeholder="ej. calavera-neo" value={newDesign.slug} onChange={e => setNewDesign({...newDesign, slug: e.target.value})} required/>
+          <button className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 font-medium text-white" type="submit">Guardar categoria</button>
+        </form>
+
+        <form onSubmit={handleCreateCollection} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-800">
+            <Plus size={20} className="text-emerald-500" /> Nueva capsula
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <input className="rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="Ej. Drop invierno" value={newCollection.name} onChange={(event) => setNewCollection((current) => ({ ...current, name: event.target.value }))} required />
+            <input className="rounded-xl border border-gray-200 bg-gray-50 p-3" type="datetime-local" value={newCollection.startsAt} onChange={(event) => setNewCollection((current) => ({ ...current, startsAt: event.target.value }))} />
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-            <input className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-pink-500 outline-none transition-all" placeholder="Breve historia del diseño..." value={newDesign.description} onChange={e => setNewDesign({...newDesign, description: e.target.value})} />
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <input className="rounded-xl border border-gray-200 bg-gray-50 p-3" type="datetime-local" value={newCollection.endsAt} onChange={(event) => setNewCollection((current) => ({ ...current, endsAt: event.target.value }))} />
+            <textarea className="min-h-24 rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="Descripcion opcional" value={newCollection.description} onChange={(event) => setNewCollection((current) => ({ ...current, description: event.target.value }))} />
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">URL de la Imagen (PNG transparente)</label>
-            <input className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-pink-500 outline-none transition-all" placeholder="https://..." value={newDesign.imageUrl} onChange={e => setNewDesign({...newDesign, imageUrl: e.target.value})} required/>
-          </div>
-          
-          <div className="md:col-span-2 flex items-center justify-between mt-2 p-4 bg-gray-50 rounded-xl border border-gray-200">
-             <div>
-                <p className="font-semibold text-gray-800">¿Es una edición limitada?</p>
-                <p className="text-sm text-gray-500">Marcar si pertenece a una cápsula temporal.</p>
-             </div>
-             <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" checked={newDesign.limited} onChange={e => setNewDesign({...newDesign, limited: e.target.checked})} />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
-             </label>
-          </div>
-          
-          <div className="md:col-span-2 flex justify-end mt-2">
-             <button className="bg-pink-600 hover:bg-pink-700 text-white font-medium py-3 px-6 rounded-xl transition-colors" type="submit">
-               Guardar Diseño
-             </button>
-          </div>
+          <p className="mt-3 text-sm text-gray-500">Las capsulas siempre se tratan como venta limitada. El limite puede venir por fechas, por stock o por ambos.</p>
+          <button className="mt-4 rounded-xl bg-emerald-600 px-5 py-3 font-medium text-white" type="submit">Guardar capsula</button>
         </form>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-left">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-sm uppercase tracking-wider">
-              <th className="p-4 font-semibold w-24">Imagen</th>
-              <th className="p-4 font-semibold">Diseño</th>
-              <th className="p-4 font-semibold">Tipo</th>
-              <th className="p-4 font-semibold text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {designs.map(d => (
-              <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
-                <td className="p-4">
-                  <div className="w-16 h-16 bg-gray-100 rounded-xl border border-gray-200 p-2 flex items-center justify-center overflow-hidden">
-                     {d.imageUrl ? <img src={d.imageUrl} alt={d.name} className="max-w-full max-h-full object-contain drop-shadow-md" /> : <ImageIcon size={24} className="text-gray-400" />}
-                  </div>
-                </td>
-                <td className="p-4">
-                   <p className="font-semibold text-gray-800">{d.name}</p>
-                   <p className="text-xs text-gray-500">{d.slug}</p>
-                </td>
-                <td className="p-4">
-                  {d.limited ? <span className="bg-yellow-100 text-yellow-800 font-bold text-xs px-3 py-1 rounded-full border border-yellow-200">Limitado</span> : <span className="bg-blue-50 text-blue-700 font-bold text-xs px-3 py-1 rounded-full border border-blue-100">Fijo</span>}
-                </td>
-                <td className="p-4 text-right">
-                   <button className="p-2 text-gray-400 hover:text-pink-600 transition-colors"><Edit2 size={18}/></button>
-                   <button className="p-2 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={18}/></button>
-                </td>
-              </tr>
-            ))}
-            {designs.length === 0 && (
-              <tr>
-                <td colSpan={4} className="p-8 text-center text-gray-500">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                     <ImageIcon size={32} className="text-gray-300"/>
-                     <p>Aún no has subido diseños a la tienda.</p>
-                  </div>
-                </td>
-              </tr>
+      <div className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800">
+            <ImageIcon size={20} className="text-pink-500" /> {editingDesignId ? 'Editar diseno' : 'Nuevo diseno'}
+          </h2>
+          {editingDesignId ? (
+            <button type="button" onClick={() => resetForm()} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
+              <X size={16} /> Cancelar edicion
+            </button>
+          ) : null}
+        </div>
+
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Nombre</label>
+            <input className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value, slug: current.slug || slugify(event.target.value) }))} required />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Codigo</label>
+            <input className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 uppercase" value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} required />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Slug</label>
+            <input className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3" value={form.slug} onChange={(event) => setForm((current) => ({ ...current, slug: slugify(event.target.value) }))} required />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Capsula</label>
+            <select
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3"
+              value={form.collectionId}
+              onChange={(event) => {
+                const nextCollectionId = event.target.value;
+                setForm((current) => ({
+                  ...current,
+                  collectionId: nextCollectionId,
+                  designCategoryId: nextCollectionId ? '' : current.designCategoryId || designCategories[0]?.id || '',
+                }));
+              }}
+            >
+              <option value="">Sin capsula (diseno fijo)</option>
+              {capsuleCollections.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Categoria</label>
+            <select
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 disabled:cursor-not-allowed disabled:bg-gray-100"
+              value={isCapsuleDesign ? '' : form.designCategoryId}
+              onChange={(event) => setForm((current) => ({ ...current, designCategoryId: event.target.value }))}
+              required={!isCapsuleDesign}
+              disabled={isCapsuleDesign}
+            >
+              <option value="">{isCapsuleDesign ? 'Las capsulas no usan categoria' : 'Selecciona una categoria'}</option>
+              {designCategories.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} ({item.code})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              {isCapsuleDesign ? 'Este diseno se vendera como capsula limitada y no se asocia a categoria.' : 'Los disenos fijos se ordenan por categoria y no usan capsula.'}
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Imagen del diseno</label>
+            <div className="flex gap-2">
+              <input className="flex-1 rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="/uploads/designs/..." value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} required />
+              <label className="cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700">
+                {uploadingImage ? 'Subiendo...' : 'Subir'}
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} />
+              </label>
+            </div>
+            {form.imageUrl ? <img src={form.imageUrl} alt="Preview" className="mt-3 h-24 w-24 rounded-xl border object-cover" /> : null}
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-gray-700">Descripcion</label>
+            <textarea className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-2 block text-sm font-medium text-gray-700">Ubicaciones permitidas</label>
+            {printPlacements.length ? (
+              <div className="flex flex-wrap gap-2">
+                {printPlacements.map((item) => (
+                  <button key={item.id} type="button" onClick={() => togglePlacement(item.code)} className={`rounded-full px-4 py-2 text-sm font-semibold ${form.placementCodes.includes(item.code) ? 'bg-gray-900 text-white' : 'border border-gray-200 bg-white text-gray-700'}`}>
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                No hay placements de impresion configurados en el sistema. Igual podes editar el diseno y guardar cambios.
+              </p>
             )}
-          </tbody>
-        </table>
+          </div>
+
+          <div className="md:col-span-2">
+            <div className="mb-2 flex items-center justify-between gap-4">
+              <label className="block text-sm font-medium text-gray-700">Tamanos de transfer y stock</label>
+              <button type="button" onClick={addTransferSize} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
+                Agregar tamano
+              </button>
+            </div>
+            <div className="space-y-3">
+              {form.transferSizes.map((item, index) => (
+                <div key={`${item.sizeCode}-${index}`} className="grid gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 md:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
+                  <input className="rounded-xl border border-gray-200 bg-white p-3" placeholder="Codigo" value={item.sizeCode} onChange={(event) => updateTransferSize(index, 'sizeCode', event.target.value)} />
+                  <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.1" placeholder="Ancho cm" value={item.widthCm} onChange={(event) => updateTransferSize(index, 'widthCm', event.target.value)} />
+                  <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.1" placeholder="Alto cm" value={item.heightCm} onChange={(event) => updateTransferSize(index, 'heightCm', event.target.value)} />
+                  <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" placeholder="Stock" value={item.stock} onChange={(event) => updateTransferSize(index, 'stock', event.target.value)} />
+                  <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.01" placeholder="Extra $" value={item.extraPrice} onChange={(event) => updateTransferSize(index, 'extraPrice', event.target.value)} />
+                  <button type="button" onClick={() => removeTransferSize(index)} className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600">
+                    Quitar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input type="checkbox" checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))} />
+            Diseno activo
+          </label>
+
+          <div className="flex items-center text-sm text-gray-500">
+            {isCapsuleDesign ? 'Se guardara como capsula limitada.' : 'Se guardara como diseno fijo de catalogo.'}
+          </div>
+
+          <div className="md:col-span-2 flex justify-end">
+            <button disabled={saving} className="rounded-xl bg-pink-600 px-6 py-3 font-medium text-white disabled:opacity-50" type="submit">
+              {saving ? 'Guardando...' : editingDesignId ? 'Guardar cambios' : 'Guardar diseno'}
+            </button>
+          </div>
+          {saveError ? <p className="md:col-span-2 text-sm text-rose-600">{saveError}</p> : null}
+        </form>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {designs.map((design) => {
+          const capsule = design.collection?.type === 'capsule' ? design.collection : null;
+          const isFixed = !capsule;
+
+          return (
+            <article key={design.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+              <div className="flex gap-4">
+                <img src={design.imageUrl} alt={design.name} className="h-24 w-24 rounded-xl border object-cover" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-gray-600">{design.code}</span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${isFixed ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                      {isFixed ? 'Fijo' : 'Capsula'}
+                    </span>
+                    {capsule ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">{capsule.name}</span> : null}
+                    {isFixed && design.designCategory ? <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">{design.designCategory.name}</span> : null}
+                    {!design.active ? <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700">Inactivo</span> : null}
+                  </div>
+                  <h3 className="mt-3 text-lg font-bold text-gray-900">{design.name}</h3>
+                  <p className="mt-1 text-sm text-gray-500">{design.description || 'Sin descripcion'}</p>
+                  <p className="mt-3 text-xs text-gray-500">
+                    {(design.transferSizes || []).map((item) => `${item.sizeCode}: ${item.stock}`).join(' · ')}
+                  </p>
+                  <div className="mt-4 flex justify-end">
+                    <button type="button" onClick={() => startEditing(design)} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
+                      <Pencil size={16} /> Editar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </div>
   );

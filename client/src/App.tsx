@@ -1,107 +1,330 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Link, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Shirt, Image as ImageIcon, PackageSearch, Settings } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, Link } from 'react-router-dom';
+import axios from 'axios';
+import { ClipboardList, Image as ImageIcon, LayoutDashboard, PackageSearch, Settings, Shield, Shirt } from 'lucide-react';
 
 import GarmentModelsAdmin from './admin/GarmentModelsAdmin';
 import DesignsAdmin from './admin/DesignsAdmin';
 import BlankStockAdmin from './admin/BlankStockAdmin';
+import UsersAdmin from './admin/UsersAdmin';
+import ProductionConfigAdmin from './admin/ProductionConfigAdmin';
+import OrdersAdmin from './admin/OrdersAdmin';
 import CustomizerApp from './customizer/CustomizerApp';
+import CartPage from './storefront/CartPage';
+import CustomerAuthPage from './storefront/CustomerAuthPage';
+import OrdersPage from './storefront/OrdersPage';
 
-// --- Admin Components ---
-const AdminLayout = () => (
-  <div className="flex h-screen bg-gray-50 font-sans text-gray-800">
-    <aside className="w-72 bg-white border-r border-gray-200 flex flex-col shadow-sm hidden md:flex">
-      <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">A</div>
-        <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600">Panel Admin</h2>
-      </div>
-      <nav className="flex-1 p-4 space-y-1">
-        <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 mt-4">Gestión</p>
-        <Link to="/admin" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors font-medium">
-          <LayoutDashboard size={20} className="text-blue-500" /> Resumen
-        </Link>
-        <Link to="/admin/models" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors font-medium">
-          <Shirt size={20} className="text-purple-500" /> Modelos base
-        </Link>
-        <Link to="/admin/designs" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors font-medium">
-          <ImageIcon size={20} className="text-pink-500" /> Diseños de Marca
-        </Link>
-        <Link to="/admin/stock" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors font-medium">
-          <PackageSearch size={20} className="text-emerald-500" /> Stock Lisas
-        </Link>
-      </nav>
-      <div className="p-4 border-t border-gray-100">
-        <Link to="/" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 hover:text-gray-900 transition-colors">
-          ← Volver a la Tienda
-        </Link>
-      </div>
-    </aside>
-    <main className="flex-1 flex flex-col h-screen overflow-hidden">
-      <header className="h-16 bg-white border-b border-gray-200 flex items-center px-8 shadow-sm justify-between">
-        <h1 className="text-lg font-semibold text-gray-700">Administración</h1>
-        <div className="flex items-center gap-4">
-          <button className="text-gray-400 hover:text-gray-600"><Settings size={20} /></button>
-          <div className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 font-bold text-sm">EB</div>
+type SessionUser = {
+  id: string;
+  email: string;
+  role: string;
+};
+
+type SessionState = {
+  token: string;
+  user: SessionUser;
+};
+
+const SESSION_KEY = 'sr-session';
+export type AppSession = SessionState;
+
+function readSession(): SessionState | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    return parsed?.token ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function applyToken(token: string | null) {
+  if (token) {
+    axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+    return;
+  }
+
+  delete axios.defaults.headers.common.Authorization;
+}
+
+export function persistSession(session: SessionState | null) {
+  if (session) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    applyToken(session.token);
+    return;
+  }
+
+  localStorage.removeItem(SESSION_KEY);
+  applyToken(null);
+}
+
+function AdminLogin({ onLogin }: { onLogin: (session: SessionState) => void }) {
+  const [email, setEmail] = useState('admin@example.com');
+  const [password, setPassword] = useState('admin123456');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.post('/api/auth/login', { email, password });
+      const session = response.data as SessionState;
+
+      if (session.user?.role !== 'admin') {
+        throw new Error('La cuenta no tiene permisos de admin.');
+      }
+
+      onLogin(session);
+    } catch (loginError) {
+      console.error(loginError);
+      setError(loginError instanceof Error ? loginError.message : 'No se pudo iniciar sesion.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
+      <form onSubmit={handleSubmit} className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Admin</p>
+        <h1 className="mt-2 text-3xl font-bold text-gray-900">Ingreso al panel</h1>
+        <p className="mt-2 text-sm text-gray-500">Usa un usuario admin valido para gestionar catalogo, stock y produccion.</p>
+
+        <div className="mt-6 space-y-4">
+          <input
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-blue-500"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="admin@example.com"
+          />
+          <input
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-blue-500"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Password"
+          />
         </div>
-      </header>
-      <div className="flex-1 overflow-auto p-8 bg-gray-50/50">
-        <div className="max-w-6xl mx-auto">
-          <Outlet />
-        </div>
-      </div>
-    </main>
-  </div>
-);
+
+        {error && <p className="mt-4 text-sm text-rose-600">{error}</p>}
+
+        <button
+          className="mt-6 w-full rounded-2xl bg-blue-600 px-5 py-4 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+          type="submit"
+          disabled={loading}
+        >
+          {loading ? 'Ingresando...' : 'Entrar'}
+        </button>
+      </form>
+    </div>
+  );
+}
 
 const Dashboard = () => (
   <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-    <div className="flex items-center justify-between mb-8">
+    <div className="mb-8 flex items-center justify-between">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">¡Hola de nuevo!</h1>
-        <p className="text-gray-500 mt-1">Aquí está el resumen de tu inventario y pedidos.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Panel operativo</h1>
+        <p className="mt-1 text-gray-500">Catalogo, stock y configuraciones de produccion.</p>
       </div>
     </div>
-    
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-start justify-between">
+
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="flex items-start justify-between rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div>
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Pedidos Pendientes</h3>
-          <p className="text-4xl font-extrabold text-blue-600 mt-2">12</p>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Configurador</h3>
+          <p className="mt-2 text-4xl font-extrabold text-blue-600">Activo</p>
         </div>
-        <div className="p-3 bg-blue-50 rounded-xl text-blue-600"><PackageSearch size={24} /></div>
+        <div className="rounded-xl bg-blue-50 p-3 text-blue-600">
+          <LayoutDashboard size={24} />
+        </div>
       </div>
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-start justify-between">
+      <div className="flex items-start justify-between rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div>
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Lisas con bajo stock</h3>
-          <p className="text-4xl font-extrabold text-amber-500 mt-2">4</p>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Diseños</h3>
+          <p className="mt-2 text-4xl font-extrabold text-pink-500">Brand</p>
         </div>
-        <div className="p-3 bg-amber-50 rounded-xl text-amber-500"><Shirt size={24} /></div>
+        <div className="rounded-xl bg-pink-50 p-3 text-pink-500">
+          <ImageIcon size={24} />
+        </div>
       </div>
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-start justify-between">
+      <div className="flex items-start justify-between rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div>
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Ingresos del Mes</h3>
-          <p className="text-4xl font-extrabold text-emerald-600 mt-2">$340k</p>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Stock base</h3>
+          <p className="mt-2 text-4xl font-extrabold text-emerald-600">Ready</p>
         </div>
-        <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600"><LayoutDashboard size={24} /></div>
+        <div className="rounded-xl bg-emerald-50 p-3 text-emerald-600">
+          <PackageSearch size={24} />
+        </div>
       </div>
     </div>
   </div>
 );
 
+function AdminShell({ session, onLogout }: { session: SessionState; onLogout: () => void }) {
+  return (
+    <div className="flex h-screen bg-gray-50 font-sans text-gray-800">
+      <aside className="hidden w-72 flex-col border-r border-gray-200 bg-white shadow-sm md:flex">
+        <div className="flex items-center gap-3 border-b border-gray-100 p-6">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 font-bold text-white">A</div>
+          <h2 className="bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-xl font-bold text-transparent">Panel Admin</h2>
+        </div>
+        <nav className="flex-1 space-y-1 p-4">
+          <p className="mb-2 mt-4 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">Gestion</p>
+          <Link to="/admin" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
+            <LayoutDashboard size={20} className="text-blue-500" /> Resumen
+          </Link>
+          <Link to="/admin/models" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
+            <Shirt size={20} className="text-purple-500" /> Modelos base
+          </Link>
+          <Link to="/admin/designs" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
+            <ImageIcon size={20} className="text-pink-500" /> Disenos de marca
+          </Link>
+          <Link to="/admin/stock" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
+            <PackageSearch size={20} className="text-emerald-500" /> Stock lisas
+          </Link>
+          <Link to="/admin/orders" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
+            <ClipboardList size={20} className="text-amber-500" /> Pedidos
+          </Link>
+          <Link to="/admin/production" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
+            <Settings size={20} className="text-blue-500" /> Produccion
+          </Link>
+          <Link to="/admin/users" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
+            <Shield size={20} className="text-indigo-500" /> Usuarios
+          </Link>
+        </nav>
+        <div className="border-t border-gray-100 p-4">
+          <Link to="/" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 transition-colors hover:text-gray-900">
+            Volver a la tienda
+          </Link>
+        </div>
+      </aside>
+      <main className="flex h-screen flex-1 flex-col overflow-hidden">
+        <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-8 shadow-sm">
+          <h1 className="text-lg font-semibold text-gray-700">Administracion</h1>
+          <div className="flex items-center gap-4">
+            <button className="text-gray-400 hover:text-gray-600">
+              <Settings size={20} />
+            </button>
+            <div className="rounded-full border border-indigo-200 bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700">{session.user.email}</div>
+            <button onClick={onLogout} className="rounded-full border px-4 py-2 text-sm text-gray-700">
+              Salir
+            </button>
+          </div>
+        </header>
+        <div className="flex-1 overflow-auto bg-gray-50/50 p-8">
+          <div className="mx-auto max-w-6xl">
+            <Outlet />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
 
 export default function App() {
+  const [session, setSession] = useState<SessionState | null>(() => readSession());
+  const [, setCustomerCartCount] = useState(0);
+
+  useEffect(() => {
+    applyToken(session?.token || null);
+  }, [session]);
+
+  const adminLayout = useMemo(
+    () =>
+      session?.user.role === 'admin' ? (
+        <AdminShell
+          session={session}
+          onLogout={() => {
+            persistSession(null);
+            setSession(null);
+          }}
+        />
+      ) : (
+        <Navigate to="/admin/login" replace />
+      ),
+    [session]
+  );
+
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Storefront */}
-        <Route path="/" element={<CustomizerApp />} />
-        
-        {/* Admin Area */}
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route
+          path="/"
+          element={
+            <CustomizerApp
+              session={session}
+              onCartCountChange={setCustomerCartCount}
+              onSessionChange={(nextSession) => {
+                persistSession(nextSession);
+                setSession(nextSession);
+              }}
+            />
+          }
+        />
+        <Route
+          path="/cart"
+          element={
+            <CartPage
+              session={session?.user.role === 'customer' ? session : null}
+              onSessionChange={(nextSession) => {
+                persistSession(nextSession);
+                setSession(nextSession);
+              }}
+              onCartCountChange={setCustomerCartCount}
+            />
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <OrdersPage
+              session={session?.user.role === 'customer' ? session : null}
+              onSessionChange={(nextSession) => {
+                persistSession(nextSession);
+                setSession(nextSession);
+              }}
+            />
+          }
+        />
+        <Route
+          path="/auth"
+          element={
+            <CustomerAuthPage
+              session={session}
+              onSessionChange={(nextSession) => {
+                persistSession(nextSession);
+                setSession(nextSession);
+              }}
+            />
+          }
+        />
+        <Route
+          path="/admin/login"
+          element={
+            session?.user.role === 'admin' ? (
+              <Navigate to="/admin" replace />
+            ) : (
+              <AdminLogin
+                onLogin={(nextSession) => {
+                  persistSession(nextSession);
+                  setSession(nextSession);
+                }}
+              />
+            )
+          }
+        />
+        <Route path="/admin" element={adminLayout}>
           <Route index element={<Dashboard />} />
           <Route path="models" element={<GarmentModelsAdmin />} />
           <Route path="designs" element={<DesignsAdmin />} />
           <Route path="stock" element={<BlankStockAdmin />} />
+          <Route path="orders" element={<OrdersAdmin />} />
+          <Route path="production" element={<ProductionConfigAdmin />} />
+          <Route path="users" element={<UsersAdmin />} />
         </Route>
       </Routes>
     </BrowserRouter>

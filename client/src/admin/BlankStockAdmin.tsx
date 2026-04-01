@@ -1,99 +1,76 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { PackageSearch, RefreshCw } from 'lucide-react';
 
 export default function BlankStockAdmin() {
   const [stock, setStock] = useState<any[]>([]);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchStock();
+    void fetchStock();
   }, []);
 
-  const fetchStock = async () => {
-    try {
-      const res = await axios.get('/api/admin/blank-stock');
-      setStock(res.data);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  async function fetchStock() {
+    const response = await axios.get('/api/admin/blank-stock');
+    setStock(response.data);
+  }
 
-  const updateQuantity = async (id: string, qty: number) => {
+  async function setQuantity(id: string, quantity: number) {
+    setSavingId(id);
     try {
-      await axios.patch(`/api/admin/blank-stock/${id}`, { quantity: qty });
-      fetchStock();
-    } catch (e) {
-      console.error(e);
+      await axios.patch(`/api/admin/blank-stock/${id}`, { quantity: Math.max(0, quantity) });
+      setStock((current) => current.map((item) => (item.id === id ? { ...item, quantity: Math.max(0, quantity) } : item)));
+    } finally {
+      setSavingId(null);
     }
-  };
+  }
 
   return (
     <div className="animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Stock de prendas Lisas</h1>
-          <p className="text-gray-500 mt-1">Controla el inventario de las bases que usarás para personalizar.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Stock de prendas lisas</h1>
+          <p className="mt-1 text-gray-500">Suma o resta stock rápido por modelo, color y talle.</p>
         </div>
-        <button onClick={fetchStock} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
+        <button onClick={() => void fetchStock()} className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-gray-700 shadow-sm">
           <RefreshCw size={16} /> Actualizar
         </button>
       </div>
-      
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-left">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-sm uppercase tracking-wider">
-              <th className="p-4 font-semibold">Modelo</th>
-              <th className="p-4 font-semibold">Color</th>
-              <th className="p-4 font-semibold text-center">Talle</th>
-              <th className="p-4 font-semibold w-40 text-center">Cantidad Disponible</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {stock.map(s => (
-              <tr key={s.id} className="hover:bg-gray-50/50 transition-colors">
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-                      <PackageSearch size={20} />
-                    </div>
-                    <p className="font-semibold text-gray-800">{s.garmentModel?.name}</p>
-                  </div>
-                </td>
-                <td className="p-4">
-                   <div className="flex items-center gap-2">
-                     <div className="w-5 h-5 rounded-full border shadow-sm" style={{ backgroundColor: s.color?.hex }}></div>
-                     <span className="text-gray-700 font-medium">{s.color?.name}</span>
-                   </div>
-                </td>
-                <td className="p-4 text-center">
-                  <span className="bg-gray-100 text-gray-700 font-bold px-3 py-1 rounded-lg">
-                    {s.size?.name}
-                  </span>
-                </td>
-                <td className="p-4 text-center">
-                  <input 
-                    type="number" 
-                    className="border border-gray-200 rounded-xl p-2 w-24 text-center font-bold text-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all" 
-                    value={s.quantity}
-                    onChange={(e) => updateQuantity(s.id, parseInt(e.target.value) || 0)}
-                  />
-                </td>
-              </tr>
-            ))}
-            {stock.length === 0 && (
-              <tr>
-                <td colSpan={4} className="p-8 text-center text-gray-500">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                     <PackageSearch size={32} className="text-gray-300"/>
-                     <p>No se encontraron registros de stock.</p>
-                     <p className="text-sm">Asegúrate de vincular Modelos, Colores y Talles en la API primero.</p>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+
+      <div className="space-y-3">
+        {stock.map((item) => (
+          <article key={item.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                  <PackageSearch size={20} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{item.garmentModel?.name}</h3>
+                  <p className="text-sm text-gray-500">{item.color?.name} · Talle {item.size?.name}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button onClick={() => void setQuantity(item.id, item.quantity - 10)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">-10</button>
+                <button onClick={() => void setQuantity(item.id, item.quantity - 1)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">-1</button>
+                <input
+                  type="number"
+                  className="w-24 rounded-xl border border-gray-200 bg-gray-50 p-2 text-center text-lg font-bold"
+                  value={item.quantity}
+                  onChange={(event) => {
+                    const nextValue = Number(event.target.value || 0);
+                    setStock((current) => current.map((row) => (row.id === item.id ? { ...row, quantity: nextValue } : row)));
+                  }}
+                  onBlur={(event) => void setQuantity(item.id, Number(event.target.value || 0))}
+                />
+                <button onClick={() => void setQuantity(item.id, item.quantity + 1)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">+1</button>
+                <button onClick={() => void setQuantity(item.id, item.quantity + 10)} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">+10</button>
+                {savingId === item.id ? <span className="text-xs text-gray-400">Guardando...</span> : null}
+              </div>
+            </div>
+          </article>
+        ))}
       </div>
     </div>
   );

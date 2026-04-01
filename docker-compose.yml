@@ -1,0 +1,48 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tshirt_customizer_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-customizer}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-customizer123}
+      POSTGRES_DB: ${DB_NAME:-tshirt_customizer}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-customizer} -d ${DB_NAME:-tshirt_customizer}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tshirt_network
+    restart: unless-stopped
+
+  # PgAdmin for database visualization (dev only)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tshirt_customizer_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - tshirt_network
+    profiles:
+      - dev
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  tshirt_network:
+    driver: bridge

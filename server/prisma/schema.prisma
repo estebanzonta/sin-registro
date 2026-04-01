@@ -3,7 +3,18 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("customer")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
 }
 
 model Category {
@@ -27,12 +38,13 @@ model GarmentModel {
   sizes            GarmentModelSize[]
   colors           GarmentModelColor[]
   blankStocks      BlankStock[]
+  printAreas       PrintArea[]
   orderItems       OrderItem[]
 }
 
 model Size {
   id               String               @id @default(uuid())
-  name             String               @unique // e.g. S, M, L, XL
+  name             String               @unique
   garmentModels    GarmentModelSize[]
   blankStocks      BlankStock[]
   orderItems       OrderItem[]
@@ -65,6 +77,8 @@ model GarmentModelColor {
   garmentModel   GarmentModel @relation(fields: [garmentModelId], references: [id])
   colorId        String
   color          Color        @relation(fields: [colorId], references: [id])
+  frontMockupUrl String?
+  backMockupUrl  String?
   active         Boolean      @default(true)
 
   @@unique([garmentModelId, colorId])
@@ -83,10 +97,48 @@ model BlankStock {
   @@unique([garmentModelId, colorId, sizeId])
 }
 
+model Placement {
+  id           String                   @id @default(uuid())
+  code         String                   @unique
+  name         String
+  kind         String
+  surface      String
+  active       Boolean                  @default(true)
+  printAreas   PrintArea[]
+  designRules  DesignPlacement[]
+  templates    UploadTemplate[]
+  logoRules    BrandLogoPlacement[]
+}
+
+model PrintArea {
+  id             String       @id @default(uuid())
+  garmentModelId String
+  garmentModel   GarmentModel @relation(fields: [garmentModelId], references: [id])
+  placementId    String
+  placement      Placement    @relation(fields: [placementId], references: [id])
+  xPct           Float
+  yPct           Float
+  widthPct       Float
+  heightPct      Float
+  active         Boolean      @default(true)
+
+  @@unique([garmentModelId, placementId])
+}
+
+model DesignCategory {
+  id      String   @id @default(uuid())
+  name    String
+  slug    String   @unique
+  code    String   @unique
+  active  Boolean  @default(true)
+  designs Design[]
+}
+
 model Collection {
   id          String   @id @default(uuid())
   name        String
-  type        String   // e.g. 'fixed' | 'capsule'
+  slug        String   @unique
+  type        String
   description String?
   active      Boolean  @default(true)
   startsAt    DateTime?
@@ -95,70 +147,139 @@ model Collection {
 }
 
 model Design {
-  id            String   @id @default(uuid())
-  collectionId  String
-  collection    Collection @relation(fields: [collectionId], references: [id])
-  name          String
-  slug          String   @unique
-  description   String?
-  imageUrl      String
-  active        Boolean  @default(true)
-  limited       Boolean  @default(false)
-  sortOrder     Int      @default(0)
-  transferSizes DesignTransferSize[]
-  orderItems    OrderItem[]
+  id                String               @id @default(uuid())
+  collectionId      String?
+  collection        Collection?          @relation(fields: [collectionId], references: [id])
+  designCategoryId  String?
+  designCategory    DesignCategory?      @relation(fields: [designCategoryId], references: [id])
+  name              String
+  slug              String               @unique
+  code              String               @unique
+  description       String?
+  imageUrl          String
+  active            Boolean              @default(true)
+  limited           Boolean              @default(false)
+  sortOrder         Int                  @default(0)
+  transferSizes     DesignTransferSize[]
+  placements        DesignPlacement[]
+  orderItems        OrderItem[]
+}
+
+model DesignPlacement {
+  id          String    @id @default(uuid())
+  designId    String
+  design      Design    @relation(fields: [designId], references: [id])
+  placementId String
+  placement   Placement @relation(fields: [placementId], references: [id])
+
+  @@unique([designId, placementId])
 }
 
 model DesignTransferSize {
   id          String   @id @default(uuid())
   designId    String
   design      Design   @relation(fields: [designId], references: [id])
-  sizeCode    String   // e.g. 'S', 'M', 'L', 'small', 'medium', 'large'
-  widthCm     Float?
-  heightCm    Float?
+  sizeCode    String
+  widthCm     Float
+  heightCm    Float
   stock       Int      @default(0)
   extraPrice  Float    @default(0)
+  active      Boolean  @default(true)
 
   @@unique([designId, sizeCode])
 }
 
-model LogoTransferStock {
-  id       String @id @default(uuid())
-  sizeCode String @unique // e.g. 'small', 'medium'
-  stock    Int    @default(0)
+model UploadTemplate {
+  id                  String               @id @default(uuid())
+  code                String               @unique
+  slug                String               @unique
+  name                String
+  customizationType   String
+  description         String?
+  requiredImageCount  Int
+  allowsText          Boolean              @default(false)
+  textLabel           String?
+  active              Boolean              @default(true)
+  sortOrder           Int                  @default(0)
+  placementId         String
+  placement           Placement            @relation(fields: [placementId], references: [id])
+  previewImageUrl     String?
+  sizeOptions         UploadTemplateSize[]
+  orderItems          OrderItem[]
 }
 
-model Placement {
-  id   String @id @default(uuid())
-  name String @unique // e.g. 'front_big', 'back_big', 'logo_front', 'logo_back', 'logo_sleeve'
+model UploadTemplateSize {
+  id               String         @id @default(uuid())
+  uploadTemplateId String
+  uploadTemplate   UploadTemplate @relation(fields: [uploadTemplateId], references: [id])
+  sizeCode         String
+  widthCm          Float
+  heightCm         Float
+  extraPrice       Float          @default(0)
+  active           Boolean        @default(true)
+
+  @@unique([uploadTemplateId, sizeCode])
+}
+
+model BrandLogo {
+  id         String              @id @default(uuid())
+  name       String
+  slug       String              @unique
+  code       String              @unique
+  imageUrl   String
+  widthCm    Float
+  heightCm   Float
+  active     Boolean             @default(true)
+  placements BrandLogoPlacement[]
+}
+
+model BrandLogoPlacement {
+  id          String    @id @default(uuid())
+  brandLogoId String
+  brandLogo   BrandLogo @relation(fields: [brandLogoId], references: [id])
+  placementId String
+  placement   Placement @relation(fields: [placementId], references: [id])
+
+  @@unique([brandLogoId, placementId])
 }
 
 model Order {
   id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
   customerName  String
   customerEmail String
   totalPrice    Float
   status        String      @default("pending")
   createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   items         OrderItem[]
 }
 
 model OrderItem {
-  id                       String       @id @default(uuid())
-  orderId                  String
-  order                    Order        @relation(fields: [orderId], references: [id])
-  garmentModelId           String
-  garmentModel             GarmentModel @relation(fields: [garmentModelId], references: [id])
-  colorId                  String
-  color                    Color        @relation(fields: [colorId], references: [id])
-  sizeId                   String
-  size                     Size         @relation(fields: [sizeId], references: [id])
-  designId                 String?
-  design                   Design?      @relation(fields: [designId], references: [id])
-  customDesignUrl          String?
-  transferSizeCode         String?
-  mainPlacement            String?
-  logoPlacement            String?
-  unitPrice                Float
-  configurationSnapshotJson String       // JSON string to freeze details
+  id                        String         @id @default(uuid())
+  orderId                   String
+  order                     Order          @relation(fields: [orderId], references: [id])
+  garmentModelId            String
+  garmentModel              GarmentModel   @relation(fields: [garmentModelId], references: [id])
+  colorId                   String
+  color                     Color          @relation(fields: [colorId], references: [id])
+  sizeId                    String
+  size                      Size           @relation(fields: [sizeId], references: [id])
+  customizationMode         String         @default("brand_design")
+  configurationCode         String         @default("")
+  designId                  String?
+  design                    Design?        @relation(fields: [designId], references: [id])
+  uploadTemplateId          String?
+  uploadTemplate            UploadTemplate? @relation(fields: [uploadTemplateId], references: [id])
+  customDesignUrl           String?
+  customAssetUrlsJson       String?
+  transferSizeCode          String?
+  mainPlacement             String?
+  printPlacementCode        String?
+  logoPlacement             String?
+  logoPlacementCode         String?
+  unitPrice                 Float
+  layoutSnapshotJson        String?
+  configurationSnapshotJson String?
 }
