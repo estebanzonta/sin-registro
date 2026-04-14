@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, Link } from 'react-router-dom';
 import axios from 'axios';
 import { ClipboardList, Image as ImageIcon, LayoutDashboard, PackageSearch, Settings, Shield, Shirt } from 'lucide-react';
+import { readFriendlyApiError } from './lib/apiErrors';
 
 import GarmentModelsAdmin from './admin/GarmentModelsAdmin';
 import DesignsAdmin from './admin/DesignsAdmin';
@@ -79,7 +80,7 @@ function AdminLogin({ onLogin }: { onLogin: (session: SessionState) => void }) {
       onLogin(session);
     } catch (loginError) {
       console.error(loginError);
-      setError(loginError instanceof Error ? loginError.message : 'No se pudo iniciar sesion.');
+      setError(readFriendlyApiError(loginError, 'No se pudo iniciar sesión.'));
     } finally {
       setLoading(false);
     }

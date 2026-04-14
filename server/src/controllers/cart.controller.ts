@@ -14,7 +14,7 @@ export const getCart = async (req: Request, res: Response, next: NextFunction) =
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
     }
 
     const cart = CartService.getCart(userId);
@@ -28,7 +28,7 @@ export const addToCart = async (req: Request, res: Response, next: NextFunction)
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
     }
 
     const request: AddToCartRequest = req.body;
@@ -49,7 +49,7 @@ export const updateCartItem = async (req: Request, res: Response, next: NextFunc
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
     }
 
     const { itemId } = req.params;
@@ -66,7 +66,7 @@ export const removeFromCart = async (req: Request, res: Response, next: NextFunc
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
     }
 
     const { itemId } = req.params;
@@ -82,7 +82,7 @@ export const clearCart = async (req: Request, res: Response, next: NextFunction)
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
     }
 
     const cart = CartService.clearCart(userId);

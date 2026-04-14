@@ -14,7 +14,7 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
     }
 
     const request: CreateOrderRequest = req.body;
@@ -35,7 +35,7 @@ export const getOrder = async (req: Request, res: Response, next: NextFunction) 
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
     }
 
     const { orderId } = req.params;
@@ -56,7 +56,7 @@ export const getUserOrders = async (req: Request, res: Response, next: NextFunct
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
     }
 
     const page = parseInt(req.query.page as string) || 1;

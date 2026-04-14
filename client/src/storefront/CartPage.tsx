@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import type { AppSession } from '../App';
 import StorefrontTopBar from './StorefrontTopBar';
+import { isAuthError, readFriendlyApiError } from '../lib/apiErrors';
 
 type CartItem = {
   id: string;
@@ -121,7 +122,12 @@ export default function CartPage({
       })
       .catch((requestError) => {
         console.error(requestError);
-        setError('No pudimos cargar el carrito.');
+        if (isAuthError(requestError)) {
+          onSessionChange(null);
+          setError('Tu sesión venció. Ingresá nuevamente para ver tu carrito.');
+          return;
+        }
+        setError(readFriendlyApiError(requestError, 'No pudimos cargar el carrito.'));
       })
       .finally(() => setLoading(false));
   }, [session, onCartCountChange]);
@@ -176,7 +182,10 @@ export default function CartPage({
       onCartCountChange(0);
     } catch (submitError) {
       console.error(submitError);
-      setError(submitError instanceof Error ? submitError.message : 'No se pudo crear la orden.');
+      if (isAuthError(submitError)) {
+        onSessionChange(null);
+      }
+      setError(readFriendlyApiError(submitError, 'No se pudo crear la orden.'));
     } finally {
       setSubmitting(false);
     }

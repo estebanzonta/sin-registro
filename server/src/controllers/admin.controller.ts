@@ -723,6 +723,9 @@ export const getBrandLogos = asyncHandler(async (req: Request, res: Response) =>
       placements: {
         include: { placement: true },
       },
+      colors: {
+        include: { color: true },
+      },
     },
     orderBy: [{ name: 'asc' }],
   });
@@ -748,6 +751,29 @@ async function resolveLogoPlacements(placementCodes: unknown) {
   return logoPlacements;
 }
 
+async function resolveLogoColors(colorIds: unknown) {
+  const ids = Array.isArray(colorIds)
+    ? colorIds.filter((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim()))
+    : [];
+
+  if (!ids.length) {
+    throw new AppError('At least one allowed color is required', 400);
+  }
+
+  const colors = await prisma.color.findMany({
+    where: {
+      id: { in: ids },
+      active: true,
+    },
+  });
+
+  if (!colors.length) {
+    throw new AppError('At least one valid active color is required', 400);
+  }
+
+  return colors;
+}
+
 function normalizeLogoPayload(body: any) {
   return {
     name: typeof body.name === 'string' ? body.name.trim() : '',
@@ -758,17 +784,19 @@ function normalizeLogoPayload(body: any) {
     heightCm: Number(body.heightCm),
     active: body.active === undefined ? true : Boolean(body.active),
     placementCodes: Array.isArray(body.placementCodes) ? body.placementCodes : [],
+    colorIds: Array.isArray(body.colorIds) ? body.colorIds : [],
   };
 }
 
 export const createBrandLogo = asyncHandler(async (req: Request, res: Response) => {
-  const { name, slug, code, imageUrl, widthCm, heightCm, active, placementCodes } = normalizeLogoPayload(req.body);
+  const { name, slug, code, imageUrl, widthCm, heightCm, active, placementCodes, colorIds } = normalizeLogoPayload(req.body);
 
   if (!name || !code || !imageUrl || widthCm === undefined || heightCm === undefined) {
     throw new AppError('Missing required fields', 400);
   }
 
   const logoPlacements = await resolveLogoPlacements(placementCodes);
+  const logoColors = await resolveLogoColors(colorIds);
 
   const logo = await prisma.brandLogo.create({
     data: {
@@ -784,10 +812,18 @@ export const createBrandLogo = asyncHandler(async (req: Request, res: Response) 
           placement: { connect: { id: placement.id } },
         })),
       },
+      colors: {
+        create: logoColors.map((color) => ({
+          color: { connect: { id: color.id } },
+        })),
+      },
     },
     include: {
       placements: {
         include: { placement: true },
+      },
+      colors: {
+        include: { color: true },
       },
     },
   });
@@ -797,16 +833,20 @@ export const createBrandLogo = asyncHandler(async (req: Request, res: Response) 
 
 export const updateBrandLogo = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, slug, code, imageUrl, widthCm, heightCm, active, placementCodes } = normalizeLogoPayload(req.body);
+  const { name, slug, code, imageUrl, widthCm, heightCm, active, placementCodes, colorIds } = normalizeLogoPayload(req.body);
 
   if (!name || !code || !imageUrl || Number.isNaN(widthCm) || Number.isNaN(heightCm)) {
     throw new AppError('Missing required fields', 400);
   }
 
   const logoPlacements = await resolveLogoPlacements(placementCodes);
+  const logoColors = await resolveLogoColors(colorIds);
 
   const logo = await prisma.$transaction(async (tx) => {
     await tx.brandLogoPlacement.deleteMany({
+      where: { brandLogoId: id },
+    });
+    await tx.brandLogoColor.deleteMany({
       where: { brandLogoId: id },
     });
 
@@ -825,6 +865,11 @@ export const updateBrandLogo = asyncHandler(async (req: Request, res: Response) 
             placement: { connect: { id: placement.id } },
           })),
         },
+        colors: {
+          create: logoColors.map((color) => ({
+            color: { connect: { id: color.id } },
+          })),
+        },
       },
     });
 
@@ -833,6 +878,9 @@ export const updateBrandLogo = asyncHandler(async (req: Request, res: Response) 
       include: {
         placements: {
           include: { placement: true },
+        },
+        colors: {
+          include: { color: true },
         },
       },
     });
@@ -846,6 +894,9 @@ export const deleteBrandLogo = asyncHandler(async (req: Request, res: Response) 
 
   await prisma.$transaction(async (tx) => {
     await tx.brandLogoPlacement.deleteMany({
+      where: { brandLogoId: id },
+    });
+    await tx.brandLogoColor.deleteMany({
       where: { brandLogoId: id },
     });
     await tx.brandLogo.delete({

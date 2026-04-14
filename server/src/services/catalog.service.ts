@@ -21,7 +21,7 @@ export class CatalogService {
   }
 
   async getCatalogInit(): Promise<CatalogInitResponse> {
-    const [categories, colors, sizes, placements, designCategories, collections, fixedDesigns, uploadTemplates] = await Promise.all([
+    const [categories, colors, sizes, placements, designCategories, collections, fixedDesigns, uploadTemplates, brandLogos] = await Promise.all([
       prisma.category.findMany({
         include: {
           garmentModels: {
@@ -76,6 +76,18 @@ export class CatalogService {
         },
         orderBy: [{ customizationType: 'asc' }, { sortOrder: 'asc' }, { code: 'asc' }],
       }),
+      prisma.brandLogo.findMany({
+        where: { active: true },
+        include: {
+          placements: {
+            include: { placement: true },
+          },
+          colors: {
+            include: { color: true },
+          },
+        },
+        orderBy: [{ name: 'asc' }],
+      }),
     ]);
 
     const visibleCollections = collections
@@ -108,6 +120,7 @@ export class CatalogService {
       designCategories,
       collections: [...fixedDesignCollection, ...visibleCollections],
       uploadTemplates,
+      brandLogos,
     };
   }
 

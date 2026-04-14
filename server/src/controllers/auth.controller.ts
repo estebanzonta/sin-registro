@@ -8,14 +8,14 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body as AuthRequest;
 
   if (!email || !password) {
-    throw new AppError('Email and password are required', 400);
+    throw new AppError('Completá email y contraseña.', 400);
   }
 
   try {
     const result = await authService.register({ email, password });
     res.status(201).json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Registration failed';
+    const message = err instanceof Error ? err.message : 'No se pudo crear la cuenta.';
     throw new AppError(message, 400);
   }
 });
@@ -24,14 +24,14 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body as AuthRequest;
 
   if (!email || !password) {
-    throw new AppError('Email and password are required', 400);
+    throw new AppError('Completá email y contraseña.', 400);
   }
 
   try {
     const result = await authService.login({ email, password });
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Login failed';
+    const message = err instanceof Error ? err.message : 'No se pudo iniciar sesión.';
     throw new AppError(message, 401);
   }
 });
@@ -39,7 +39,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 export const me = asyncHandler(async (req: Request, res: Response) => {
   // This route requires auth middleware
   if (!req.user) {
-    throw new AppError('Not authenticated', 401);
+    throw new AppError('Necesitás iniciar sesión para continuar.', 401);
   }
 
   const user = await prisma.user.findUnique({
@@ -47,7 +47,7 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!user) {
-    throw new AppError('User not found', 404);
+    throw new AppError('No encontramos tu usuario.', 404);
   }
 
   res.json({

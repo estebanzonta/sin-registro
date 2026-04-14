@@ -3,19 +3,9 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import type { AppSession } from '../App';
 import StorefrontTopBar from './StorefrontTopBar';
+import { readFriendlyApiError } from '../lib/apiErrors';
 
 type AuthMode = 'login' | 'register';
-
-function readApiError(error: unknown, fallback: string) {
-  if (axios.isAxiosError(error)) {
-    const message = error.response?.data?.message || error.response?.data?.error;
-    if (typeof message === 'string' && message.trim()) {
-      return message;
-    }
-  }
-
-  return error instanceof Error ? error.message : fallback;
-}
 
 export default function CustomerAuthPage({
   session,
@@ -59,7 +49,7 @@ export default function CustomerAuthPage({
       onSessionChange(nextSession);
       navigate(nextSession.user.role === 'admin' ? '/admin' : redirectTo, { replace: true });
     } catch (submitError) {
-      setError(readApiError(submitError, 'No se pudo iniciar sesion.'));
+      setError(readFriendlyApiError(submitError, 'No se pudo iniciar sesión.'));
     } finally {
       setLoading(false);
     }

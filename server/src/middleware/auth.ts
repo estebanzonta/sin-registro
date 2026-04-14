@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import { JWTPayload } from '../types/index.js';
 import { AppError } from './errorHandler.js';
 
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
+
 declare global {
   namespace Express {
     interface Request {
@@ -20,20 +22,20 @@ export const verifyAuth = (
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return next(new AppError('Missing or invalid authorization header', 401));
+      return next(new AppError('Necesitás iniciar sesión para continuar.', 401));
     }
 
     const token = authHeader.substring(7); // Remove "Bearer "
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
 
     req.user = decoded;
     next();
   } catch (err) {
     if (err instanceof jwt.JsonWebTokenError) {
-      return next(new AppError('Invalid token', 401));
+      return next(new AppError('Tu sesión no es válida. Ingresá nuevamente.', 401));
     }
     if (err instanceof jwt.TokenExpiredError) {
-      return next(new AppError('Token expired', 401));
+      return next(new AppError('Tu sesión venció. Ingresá nuevamente.', 401));
     }
     return next(err);
   }
@@ -48,24 +50,24 @@ export const verifyAdmin = (
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return next(new AppError('Missing or invalid authorization header', 401));
+      return next(new AppError('Necesitás iniciar sesión para continuar.', 401));
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
 
     if (decoded.role !== 'admin') {
-      return next(new AppError('Admin access required', 403));
+      return next(new AppError('No tenés permisos para acceder a esta sección.', 403));
     }
 
     req.user = decoded;
     next();
   } catch (err) {
     if (err instanceof jwt.JsonWebTokenError) {
-      return next(new AppError('Invalid token', 401));
+      return next(new AppError('Tu sesión no es válida. Ingresá nuevamente.', 401));
     }
     if (err instanceof jwt.TokenExpiredError) {
-      return next(new AppError('Token expired', 401));
+      return next(new AppError('Tu sesión venció. Ingresá nuevamente.', 401));
     }
     return next(err);
   }

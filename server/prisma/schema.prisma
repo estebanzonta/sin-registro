@@ -69,6 +69,7 @@ model Color {
   garmentModels  GarmentModelColor[]
   blankStocks    BlankStock[]
   orderItems     OrderItem[]
+  brandLogos     BrandLogoColor[]
 }
 
 model GarmentModelColor {
@@ -231,6 +232,7 @@ model BrandLogo {
   heightCm   Float
   active     Boolean             @default(true)
   placements BrandLogoPlacement[]
+  colors     BrandLogoColor[]
 }
 
 model BrandLogoPlacement {
@@ -241,6 +243,16 @@ model BrandLogoPlacement {
   placement   Placement @relation(fields: [placementId], references: [id])
 
   @@unique([brandLogoId, placementId])
+}
+
+model BrandLogoColor {
+  id          String    @id @default(uuid())
+  brandLogoId String
+  brandLogo   BrandLogo @relation(fields: [brandLogoId], references: [id])
+  colorId     String
+  color       Color     @relation(fields: [colorId], references: [id])
+
+  @@unique([brandLogoId, colorId])
 }
 
 model Order {

@@ -4,18 +4,20 @@ import { ChevronLeft, ChevronRight, ShoppingCart, UploadCloud } from 'lucide-rea
 import { Link, useNavigate } from 'react-router-dom';
 import type { AppSession } from '../App';
 import StorefrontTopBar from '../storefront/StorefrontTopBar';
+import { isAuthError, readFriendlyApiError } from '../lib/apiErrors';
 
-type Screen = 'category' | 'product' | 'selection' | 'customizer';
+type Screen = 'category' | 'product' | 'mode' | 'selection' | 'customizer';
 type AuthMode = 'login' | 'register';
 type CustomMode = 'brand_design' | 'user_upload';
 type UploadMode = 'photo_simple' | 'photo_collage' | 'pets';
 type ProductSizeOption = { sizeId: string; size: { id: string; name: string } };
 type ProductColorOption = { colorId: string; color: { id: string; name: string; hex: string }; frontMockupUrl?: string; backMockupUrl?: string };
 type Product = { id: string; name: string; slug: string; description?: string; basePrice: number; frontMockupUrl?: string; backMockupUrl?: string; sizes?: ProductSizeOption[]; colors?: ProductColorOption[]; printAreas?: Array<{ placement: { code: string } }> };
-type SizePriceOption = { id: string; sizeCode: string; extraPrice: number };
+type SizePriceOption = { id: string; sizeCode: string; widthCm: number; heightCm: number; extraPrice: number };
 type Design = { id: string; name: string; code: string; imageUrl: string; designCategoryId?: string; transferSizes?: SizePriceOption[]; placements?: Array<{ placement: { code: string } }> };
 type UploadTemplate = { id: string; code: string; name: string; customizationType?: UploadMode; requiredImageCount: number; allowsText?: boolean; textLabel?: string; placement?: { code: string }; sizeOptions?: SizePriceOption[] };
-type Catalog = { categories: Array<{ id: string; name: string; garmentModels?: Product[] }>; designCategories?: Array<{ id: string; name: string; code: string }>; collections: Array<{ id: string; name: string; designs?: Design[] }>; uploadTemplates: UploadTemplate[] };
+type BrandLogo = { id: string; name: string; code: string; imageUrl: string; widthCm: number; heightCm: number; placements?: Array<{ placement: { code: string } }>; colors?: Array<{ colorId: string; color?: { id: string; name: string; hex: string } }> };
+type Catalog = { categories: Array<{ id: string; name: string; garmentModels?: Product[] }>; designCategories?: Array<{ id: string; name: string; code: string }>; collections: Array<{ id: string; name: string; designs?: Design[] }>; uploadTemplates: UploadTemplate[]; brandLogos?: BrandLogo[] };
 type Config = { valid: boolean; price: number; basePrice: number; extraPrice: number; configurationCode: string; allowedLogoPlacements: Array<{ code: string; name: string }> };
 type CartResponse = { totalItems: number };
 type UploadedAsset = { id: string; name: string; width: number; height: number; previewUrl: string };
@@ -56,14 +58,41 @@ function uploadModeLabel(mode: UploadMode) {
   return 'Mascotas';
 }
 
+function formatCountList(counts: number[]) {
+  if (!counts.length) return '';
+  if (counts.length === 1) return `${counts[0]}`;
+  if (counts.length === 2) return `${counts[0]} o ${counts[1]}`;
+  return `${counts.slice(0, -1).join(', ')} o ${counts[counts.length - 1]}`;
+}
+
 function formatMoney(value: number) {
   return `$${value.toLocaleString('es-AR')}`;
+}
+
+function isDarkGarmentColor(color?: { name?: string; hex?: string } | null) {
+  const name = color?.name?.toLowerCase() || '';
+  const hex = (color?.hex || '').replace('#', '');
+  if (name.includes('black') || name.includes('negro')) return true;
+  if (hex.length === 6) {
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    return luminance < 0.35;
+  }
+  return false;
 }
 
 function logoPositionStyle(code: string): React.CSSProperties {
   if (code === 'LF') return { left: '50%', top: '33%', transform: 'translateX(-50%)' };
   if (code === 'LC') return { left: '50%', top: '17%', transform: 'translateX(-50%)' };
   return { right: '18%', top: '34%' };
+}
+
+function logoBelongsToView(code: string, view: 'front' | 'back') {
+  if (code === 'LF') return view === 'front';
+  if (code === 'LC') return view === 'back';
+  return true;
 }
 
 function logoOptionLabel(code: string, name?: string) {
@@ -90,20 +119,9 @@ async function toAsset(file: File): Promise<UploadedAsset> {
   return { id: `${file.name}-${Date.now()}`, name: file.name, width: dimensions.width, height: dimensions.height, previewUrl };
 }
 
-function readApiError(error: unknown, fallback: string) {
-  if (axios.isAxiosError(error)) {
-    const message = error.response?.data?.message || error.response?.data?.error;
-    if (typeof message === 'string' && message.trim()) {
-      return message;
-    }
-  }
-
-  return error instanceof Error ? error.message : fallback;
-}
-
 function AuthPanel({ mode, loading, error, email, password, setEmail, setPassword, onSubmit, onModeChange }: { mode: AuthMode; loading: boolean; error: string | null; email: string; password: string; setEmail: (value: string) => void; setPassword: (value: string) => void; onSubmit: () => Promise<void>; onModeChange: (mode: AuthMode) => void }) {
   return (
-    <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+    <div className="mt-4 rounded-lg bg-gray-50 p-4">
       <div className="mb-3 flex gap-2">
         <button onClick={() => onModeChange('login')} className={`rounded-full px-4 py-2 text-sm ${mode === 'login' ? 'bg-gray-900 text-white' : 'border bg-white'}`}>Ingresar</button>
         <button onClick={() => onModeChange('register')} className={`rounded-full px-4 py-2 text-sm ${mode === 'register' ? 'bg-gray-900 text-white' : 'border bg-white'}`}>Crear cuenta</button>
@@ -137,6 +155,8 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   const [, setBasePrice] = useState(0);
   const [, setTransferExtraPrice] = useState(0);
   const [isValid, setIsValid] = useState(false);
+  const [hasResolvedConfiguration, setHasResolvedConfiguration] = useState(false);
+  const [stockValidationMessage, setStockValidationMessage] = useState<string | null>(null);
   const [configurationCode, setConfigurationCode] = useState('');
   const [allowedLogoPlacements, setAllowedLogoPlacements] = useState<Array<{ code: string; name: string }>>([]);
   const [logoPlacementCode, setLogoPlacementCode] = useState('LC');
@@ -157,7 +177,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   useEffect(() => {
     axios.get<Catalog>('/api/catalog/init').then((response) => {
       setInitData(response.data);
-      const firstModel = response.data.categories.flatMap((item) => item.garmentModels || []).find((item) => (item.printAreas || []).length > 0) || response.data.categories.flatMap((item) => item.garmentModels || [])[0];
+      const firstModel = response.data.categories.flatMap((item) => item.garmentModels || [])[0];
       if (firstModel) {
         setSelectedProduct(firstModel);
         setSelectedSizeId(firstModel.sizes?.[0]?.sizeId || '');
@@ -187,6 +207,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       onCartCountChange(0);
     });
   }, [session, onCartCountChange]);
+  const products = useMemo(() => (initData?.categories || []).flatMap((category) => category.garmentModels || []), [initData]);
   const designs = useMemo(() => (initData?.collections || []).flatMap((collection) => collection.designs || []), [initData]);
   const filteredDesigns = useMemo(() => designs.filter((item) => {
     const hasPlacementRules = (item.placements || []).length > 0;
@@ -197,16 +218,103 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   const selectedDesign = filteredDesigns.find((item) => item.id === selectedDesignId) || designs.find((item) => item.id === selectedDesignId) || null;
   const uploadTemplates = useMemo(() => initData?.uploadTemplates || [], [initData]);
   const filteredUploadTemplates = useMemo(() => uploadTemplates.filter((item) => (item.customizationType || 'photo_simple') === selectedUploadMode), [uploadTemplates, selectedUploadMode]);
-  const selectedTemplate = filteredUploadTemplates.find((item) => item.id === selectedTemplateId) || filteredUploadTemplates[0] || null;
-  const transferSizeOptions = customMode === 'brand_design' ? selectedDesign?.transferSizes || [] : selectedTemplate?.sizeOptions || [];
+  const selectedPlacementCode = selectedView === 'back' ? 'BACK' : 'FRONT';
+  const uploadPlacementCodes = useMemo(
+    () => Array.from(new Set(filteredUploadTemplates.map((item) => item.placement?.code).filter((item): item is string => Boolean(item)))),
+    [filteredUploadTemplates]
+  );
+  const uploadTemplatesForView = useMemo(() => {
+    const matching = filteredUploadTemplates.filter((item) => item.placement?.code === selectedPlacementCode);
+    return matching.length ? matching : filteredUploadTemplates;
+  }, [filteredUploadTemplates, selectedPlacementCode]);
+  const uploadCountOptions = useMemo(
+    () => Array.from(new Set(filteredUploadTemplates.map((item) => item.requiredImageCount))).sort((a, b) => a - b),
+    [filteredUploadTemplates]
+  );
+  const inputAllowsText = useMemo(
+    () => filteredUploadTemplates.some((item) => item.allowsText),
+    [filteredUploadTemplates]
+  );
+  const inputTextLabel = useMemo(
+    () => filteredUploadTemplates.find((item) => item.allowsText)?.textLabel || 'Texto',
+    [filteredUploadTemplates]
+  );
+  const selectedTemplate = useMemo(() => {
+    if (customMode === 'user_upload') {
+      const byPlacement = uploadTemplatesForView;
+      const bySize = byPlacement.filter((item) => (item.sizeOptions || []).some((size) => size.sizeCode === selectedTransferSizeCode));
+      const sizeSource = bySize.length ? bySize : byPlacement;
+      const byCount = uploadedAssets.length ? sizeSource.filter((item) => item.requiredImageCount === uploadedAssets.length) : sizeSource;
+      const countSource = byCount.length ? byCount : sizeSource;
+      const byText = customText.trim() ? countSource.filter((item) => item.allowsText) : countSource;
+      return byText[0] || countSource[0] || filteredUploadTemplates[0] || null;
+    }
+    return filteredUploadTemplates.find((item) => item.id === selectedTemplateId) || filteredUploadTemplates[0] || null;
+  }, [customMode, uploadTemplatesForView, filteredUploadTemplates, selectedTransferSizeCode, selectedTemplateId, uploadedAssets.length, customText]);
+  const transferSizeOptions = useMemo(() => {
+    if (customMode === 'brand_design') return selectedDesign?.transferSizes || [];
+    const source = uploadTemplatesForView.length ? uploadTemplatesForView : filteredUploadTemplates;
+    const byCode = new Map<string, SizePriceOption>();
+    source.forEach((template) => {
+      (template.sizeOptions || []).forEach((option) => {
+        if (!byCode.has(option.sizeCode)) byCode.set(option.sizeCode, option);
+      });
+    });
+    return Array.from(byCode.values());
+  }, [customMode, selectedDesign, uploadTemplatesForView, filteredUploadTemplates]);
+  const selectedTransferSize = transferSizeOptions.find((item) => item.sizeCode === selectedTransferSizeCode) || transferSizeOptions[0] || null;
   const selectedColorOption = selectedProduct?.colors?.find((item) => item.colorId === selectedColorId) || null;
   const currentColor = selectedColorOption?.color.name.toLowerCase() || 'white';
   const currentImage = resolveMockupImage(selectedProduct, currentColor, selectedView, selectedColorOption);
-  const requiredAssetCount = customMode === 'user_upload' ? selectedTemplate?.requiredImageCount || 0 : 0;
-  const printScaleClass = selectedTransferSizeCode === 'grande' ? 'w-[62%]' : selectedTransferSizeCode === 'chico' ? 'w-[28%]' : 'w-[42%]';
+  const requiredAssetCount = customMode === 'user_upload'
+    ? (selectedUploadMode === 'photo_simple' ? 1 : uploadedAssets.length || 0)
+    : 0;
   const selectedModeLabel = customMode === 'brand_design' ? 'Diseño de la marca' : 'Personalizado';
-  const selectedContentLabel = customMode === 'brand_design' ? (selectedDesign ? `${selectedDesign.code} · ${selectedDesign.name}` : 'Elegí una estampa') : (selectedTemplate ? `${selectedTemplate.code} · ${selectedTemplate.name}` : 'Elegí una plantilla');
-  const visibleLogoOptions = allowedLogoPlacements.length ? allowedLogoPlacements : [...FALLBACK_LOGO_OPTIONS[selectedView]];
+  const selectedContentLabel = customMode === 'brand_design'
+    ? (selectedDesign ? `${selectedDesign.code} · ${selectedDesign.name}` : 'Elegí una estampa')
+    : selectedUploadMode === 'photo_simple'
+      ? 'Foto simple'
+      : selectedUploadMode === 'photo_collage'
+        ? 'Foto collage'
+        : 'Mascotas';
+  const isDarkGarment = isDarkGarmentColor(selectedColorOption?.color);
+  const compatibleBrandLogos = useMemo(
+    () => (initData?.brandLogos || []).filter((logo) => {
+      const matchesPlacement = (logo.placements || []).some((item) => item.placement.code === logoPlacementCode);
+      const matchesColor = !(logo.colors || []).length || (logo.colors || []).some((item) => item.colorId === selectedColorId);
+      return matchesPlacement && matchesColor;
+    }),
+    [initData, logoPlacementCode, selectedColorId]
+  );
+  const visibleLogoOptions = useMemo(() => {
+    const baseOptions = allowedLogoPlacements.length ? allowedLogoPlacements : [...FALLBACK_LOGO_OPTIONS[selectedView]];
+    return baseOptions.filter((option) =>
+      (initData?.brandLogos || []).some((logo) => {
+        const matchesPlacement = (logo.placements || []).some((item) => item.placement.code === option.code);
+        const matchesColor = !(logo.colors || []).length || (logo.colors || []).some((item) => item.colorId === selectedColorId);
+        return matchesPlacement && matchesColor;
+      })
+    );
+  }, [allowedLogoPlacements, selectedView, initData, selectedColorId]);
+  const selectedBrandLogo = compatibleBrandLogos[0] || null;
+  const maxTransferWidth = Math.max(...transferSizeOptions.map((item) => item.widthCm || 0), 1);
+  const maxTransferHeight = Math.max(...transferSizeOptions.map((item) => item.heightCm || 0), 1);
+  const printScaleStyle = selectedTransferSize
+    ? {
+        width: `${Math.max(20, (selectedTransferSize.widthCm / maxTransferWidth) * 92)}%`,
+        height: `${Math.max(20, (selectedTransferSize.heightCm / maxTransferHeight) * 92)}%`,
+      }
+    : { width: '42%', height: '42%' };
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+    if (!selectedProduct.sizes?.some((item) => item.sizeId === selectedSizeId)) {
+      setSelectedSizeId(selectedProduct.sizes?.[0]?.sizeId || '');
+    }
+    if (!selectedProduct.colors?.some((item) => item.colorId === selectedColorId)) {
+      setSelectedColorId(selectedProduct.colors?.[0]?.colorId || '');
+    }
+  }, [selectedProduct, selectedSizeId, selectedColorId]);
 
   useEffect(() => {
     const firstSize = transferSizeOptions[0]?.sizeCode;
@@ -223,16 +331,18 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   }, [filteredUploadTemplates, selectedTemplateId]);
 
   useEffect(() => {
-    if (customMode === 'user_upload' && selectedTemplate?.placement?.code) setSelectedView(selectedTemplate.placement.code === 'BACK' ? 'back' : 'front');
-  }, [customMode, selectedTemplate]);
+    if (customMode === 'user_upload' && uploadPlacementCodes.length && !uploadPlacementCodes.includes(selectedPlacementCode)) {
+      setSelectedView(uploadPlacementCodes[0] === 'BACK' ? 'back' : 'front');
+    }
+  }, [customMode, uploadPlacementCodes, selectedPlacementCode]);
 
   useEffect(() => {
-    const fallbackOptions = FALLBACK_LOGO_OPTIONS[selectedView];
-    if (!fallbackOptions.some((item) => item.code === logoPlacementCode)) {
-      setLogoPlacementCode(fallbackOptions[0].code);
+    if (!visibleLogoOptions.length) return;
+    if (!visibleLogoOptions.some((item) => item.code === logoPlacementCode)) {
+      setLogoPlacementCode(visibleLogoOptions[0].code);
       setLogoAutoNotice('Movimos el logo automáticamente porque no puede compartir la misma cara con la estampa.');
     }
-  }, [selectedView, logoPlacementCode]);
+  }, [visibleLogoOptions, logoPlacementCode]);
 
   useEffect(() => {
     if (!logoAutoNotice) return;
@@ -252,8 +362,8 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   }, [customMode, filteredDesigns, selectedDesignId]);
 
   useEffect(() => {
-    if (!selectedProduct || !selectedSizeId || !selectedColorId || (customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && !selectedTemplateId)) {
-      setPrice(0); setBasePrice(0); setTransferExtraPrice(0); setIsValid(false); setConfigurationCode(''); return;
+    if (!selectedProduct || !selectedSizeId || !selectedColorId || (customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && !selectedTemplate)) {
+      setPrice(0); setBasePrice(0); setTransferExtraPrice(0); setIsValid(false); setHasResolvedConfiguration(false); setStockValidationMessage(null); setConfigurationCode(''); return;
     }
     axios.post<Config>('/api/configurator/resolve', {
       customizationMode: customMode,
@@ -263,34 +373,44 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       printPlacementCode: selectedView === 'front' ? 'FRONT' : 'BACK',
       logoPlacementCode,
       designId: customMode === 'brand_design' ? selectedDesignId : undefined,
-      uploadTemplateId: customMode === 'user_upload' ? selectedTemplateId : undefined,
+      uploadTemplateId: customMode === 'user_upload' ? selectedTemplate?.id : undefined,
       transferSizeCode: selectedTransferSizeCode,
     }).then((response) => {
       setPrice(response.data.price);
       setBasePrice(response.data.basePrice || 0);
       setTransferExtraPrice(response.data.extraPrice || 0);
       setIsValid(response.data.valid);
+      setHasResolvedConfiguration(true);
+      setStockValidationMessage(response.data.valid ? null : 'No hay stock disponible para esta combinación.');
       setConfigurationCode(response.data.configurationCode);
       setAllowedLogoPlacements(response.data.allowedLogoPlacements || []);
       if (!response.data.allowedLogoPlacements.some((item) => item.code === logoPlacementCode)) setLogoPlacementCode(response.data.allowedLogoPlacements[0]?.code || logoPlacementCode);
-    }).catch(() => {
+    }).catch((error) => {
       setPrice(selectedProduct.basePrice);
       setBasePrice(selectedProduct.basePrice);
       const fallbackSelectedSize = transferSizeOptions.find((item) => item.sizeCode === selectedTransferSizeCode);
       setTransferExtraPrice(fallbackSelectedSize?.extraPrice || 0);
       setIsValid(false);
+      setHasResolvedConfiguration(false);
+      setStockValidationMessage(readFriendlyApiError(error, 'No se pudo validar stock en este momento.'));
+      setConfigurationCode('');
       setAllowedLogoPlacements([]);
     });
-  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplateId, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions]);
+  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions]);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
     setUploadError(null);
     try {
-      if (files.length < requiredAssetCount) throw new Error(`Debes subir ${requiredAssetCount} imagen${requiredAssetCount > 1 ? 'es' : ''} para esta plantilla.`);
+      if (selectedUploadMode === 'photo_simple') {
+        if (files.length < 1) throw new Error('Debes subir 1 imagen.');
+      } else if (!uploadCountOptions.includes(files.length)) {
+        throw new Error(`Debes subir ${formatCountList(uploadCountOptions)} imagen${uploadCountOptions.some((count) => count > 1) ? 'es' : ''} para ${uploadModeLabel(selectedUploadMode).toLowerCase()}.`);
+      }
       const nextAssets: UploadedAsset[] = [];
-      for (const file of files.slice(0, requiredAssetCount)) {
+      const expectedCount = selectedUploadMode === 'photo_simple' ? 1 : files.length;
+      for (const file of files.slice(0, expectedCount)) {
         if (!PHOTO_RULES.allowed.includes(file.type)) throw new Error('Formato inválido');
         const asset = await toAsset(file);
         if (asset.width < PHOTO_RULES.minWidth || asset.height < PHOTO_RULES.minHeight) throw new Error('Calidad insuficiente');
@@ -314,7 +434,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       }
       onSessionChange(nextSession);
     } catch (error) {
-      setAuthError(readApiError(error, 'No se pudo autenticar'));
+      setAuthError(readFriendlyApiError(error, 'No se pudo autenticar.'));
     } finally { setAuthLoading(false); }
   }
 
@@ -330,7 +450,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
         printPlacementCode: selectedView === 'front' ? 'FRONT' : 'BACK',
         logoPlacementCode,
         designId: customMode === 'brand_design' ? selectedDesignId : undefined,
-        uploadTemplateId: customMode === 'user_upload' ? selectedTemplateId : undefined,
+        uploadTemplateId: customMode === 'user_upload' ? selectedTemplate?.id : undefined,
         transferSizeCode: selectedTransferSizeCode,
         customAssetUrlsJson: customMode === 'user_upload' && uploadedAssets.length ? JSON.stringify({ assets: uploadedAssets, text: customText || undefined }) : undefined,
         quantity: 1,
@@ -339,7 +459,10 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       onCartCountChange(response.data.totalItems || 0);
       navigate('/cart');
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'No se pudo guardar en el carrito');
+      if (isAuthError(error)) {
+        onSessionChange(null);
+      }
+      setSaveError(readFriendlyApiError(error, 'No se pudo guardar en el carrito.'));
     } finally { setSaving(false); }
   }
 
@@ -361,45 +484,83 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     setSelectedDesignId(filteredDesigns[nextIndex].id);
   }
 
+  function cycleProduct(direction: 'prev' | 'next') {
+    if (!products.length) return;
+    const currentIndex = products.findIndex((item) => item.id === selectedProduct?.id);
+    const baseIndex = currentIndex >= 0 ? currentIndex : 0;
+    const offset = direction === 'next' ? 1 : -1;
+    const nextIndex = (baseIndex + offset + products.length) % products.length;
+    setSelectedProduct(products[nextIndex]);
+  }
+
   function renderBrandDesignPicker() {
+    const currentIndex = filteredDesigns.findIndex((item) => item.id === selectedDesign?.id);
+    const baseIndex = currentIndex >= 0 ? currentIndex : 0;
+    const prevDesign = filteredDesigns.length > 1 ? filteredDesigns[(baseIndex - 1 + filteredDesigns.length) % filteredDesigns.length] : null;
+    const nextDesign = filteredDesigns.length > 1 ? filteredDesigns[(baseIndex + 1) % filteredDesigns.length] : null;
+
     return (
-      <div className="mt-6 grid gap-6 lg:grid-cols-[0.7fr_1.3fr]">
+      <div className="mt-6 space-y-6">
         <div>
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">Categorías</h3>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setSelectedCategoryId('all')} className={`rounded-full border px-4 py-2 text-sm ${selectedCategoryId === 'all' ? 'border-gray-900 bg-gray-900 text-white' : 'bg-white'}`}>Todas</button>
-            {(initData?.designCategories || []).map((item) => <button key={item.id} onClick={() => setSelectedCategoryId(item.id)} className={`rounded-full border px-4 py-2 text-sm ${selectedCategoryId === item.id ? 'border-gray-900 bg-gray-900 text-white' : 'bg-white'}`}>{item.name}</button>)}
+          <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">Categorías</h3>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
+            <button onClick={() => setSelectedCategoryId('all')} className={`text-left text-sm font-bold uppercase transition-colors ${selectedCategoryId === 'all' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-700'}`} style={{ fontFamily: 'var(--font-heading)' }}>Todas</button>
+            {(initData?.designCategories || []).map((item) => <button key={item.id} onClick={() => setSelectedCategoryId(item.id)} className={`text-left text-sm font-bold uppercase transition-colors ${selectedCategoryId === item.id ? 'text-gray-900' : 'text-gray-400 hover:text-gray-700'}`} style={{ fontFamily: 'var(--font-heading)' }}>{item.name}</button>)}
           </div>
         </div>
-        <div>
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">Estampas</h3>
+        <div className="overflow-hidden rounded-[32px] bg-[#050505] px-4 py-8 text-white lg:px-8 lg:py-10">
+          <div className="mx-auto max-w-2xl text-center">
+            <h3 className="text-[2rem] leading-[0.95] font-normal text-white sm:text-[2.8rem]" style={{ fontFamily: 'Georgia, Times New Roman, serif' }}>
+              Diseños elegidos para
+              <br />
+              esta colección
+            </h3>
+          </div>
           {!filteredDesigns.length ? (
-            <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
-              <p className="text-sm font-semibold text-gray-700">No hay diseños visibles para este filtro.</p>
-              <p className="mt-2 text-sm text-gray-500">Probá con otra categoría o cargá una estampa desde el admin.</p>
+            <div className="mt-8 rounded-[28px] border border-white/10 bg-white/5 p-8 text-center">
+              <p className="text-sm font-semibold text-white">No hay diseños visibles para este filtro.</p>
+              <p className="mt-2 text-sm text-white/60">Probá con otra categoría o cargá una estampa desde el admin.</p>
             </div>
           ) : (
-            <div className="rounded-[32px] border border-gray-200 bg-gray-50 p-4">
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={() => cycleDesign('prev')} className="flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm">
+            <div className="mt-10">
+              <div className="flex items-center justify-center gap-3 [perspective:1400px] sm:gap-5">
+                {prevDesign ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDesignId(prevDesign.id)}
+                    className="hidden h-[240px] w-[98px] shrink-0 overflow-hidden rounded-[28px] bg-white/10 opacity-65 shadow-[0_20px_40px_rgba(0,0,0,0.35)] transition duration-300 hover:opacity-100 sm:block"
+                    style={{ transform: 'rotateY(38deg) rotateZ(-2deg) scale(0.94)' }}
+                  >
+                    <img src={prevDesign.imageUrl} alt={prevDesign.name} className="h-full w-full object-cover" />
+                  </button>
+                ) : null}
+                <button type="button" onClick={() => cycleDesign('prev')} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/18">
                   <ChevronLeft size={20} />
                 </button>
-                <button type="button" onClick={() => selectedDesign && setSelectedDesignId(selectedDesign.id)} className="group flex min-w-0 flex-1 overflow-hidden rounded-[28px] border border-gray-200 bg-white text-left shadow-sm">
-                  <div className="flex h-64 w-full items-center justify-center bg-[linear-gradient(135deg,#f8fafc,#e5e7eb)] p-6">
-                    {selectedDesign ? <img src={selectedDesign.imageUrl} alt={selectedDesign.name} className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]" /> : null}
+                <button type="button" onClick={() => selectedDesign && setSelectedDesignId(selectedDesign.id)} className="group flex min-w-0 max-w-[300px] flex-1 flex-col overflow-hidden rounded-[34px] bg-white/8 text-left shadow-[0_32px_100px_rgba(0,0,0,0.5)] ring-1 ring-white/8 transition duration-300 hover:-translate-y-1">
+                  <div className="relative flex h-[340px] w-full items-end overflow-hidden bg-[radial-gradient(circle_at_top,#2a2a2a_0%,#101010_45%,#060606_100%)] p-4 sm:h-[400px]">
+                    {selectedDesign ? <img src={selectedDesign.imageUrl} alt={selectedDesign.name} className="h-full w-full rounded-[28px] object-cover transition-transform duration-500 group-hover:scale-[1.03]" /> : null}
+                    {selectedDesign ? <div className="pointer-events-none absolute inset-x-6 bottom-6 rounded-2xl bg-black/35 px-4 py-3 backdrop-blur-sm"><p className="text-[11px] font-bold uppercase tracking-[0.26em] text-white/70">{selectedDesign.code}</p><p className="mt-1 text-xl leading-tight text-white" style={{ fontFamily: 'Georgia, Times New Roman, serif' }}>{selectedDesign.name}</p></div> : null}
                   </div>
                 </button>
-                <button type="button" onClick={() => cycleDesign('next')} className="flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm">
+                <button type="button" onClick={() => cycleDesign('next')} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/18">
                   <ChevronRight size={20} />
                 </button>
+                {nextDesign ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDesignId(nextDesign.id)}
+                    className="hidden h-[240px] w-[98px] shrink-0 overflow-hidden rounded-[28px] bg-white/10 opacity-65 shadow-[0_20px_40px_rgba(0,0,0,0.35)] transition duration-300 hover:opacity-100 sm:block"
+                    style={{ transform: 'rotateY(-38deg) rotateZ(2deg) scale(0.94)' }}
+                  >
+                    <img src={nextDesign.imageUrl} alt={nextDesign.name} className="h-full w-full object-cover" />
+                  </button>
+                ) : null}
               </div>
               {selectedDesign ? (
-                <div className="mt-4 flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.24em] text-gray-500">{selectedDesign.code}</p>
-                    <p className="mt-2 text-lg font-semibold text-gray-900">{selectedDesign.name}</p>
-                  </div>
-                  <p className="text-sm text-gray-500">{filteredDesigns.findIndex((item) => item.id === selectedDesign.id) + 1} / {filteredDesigns.length}</p>
+                <div className="mt-6 flex items-center justify-between gap-4 px-2">
+                  <p className="text-sm text-white/60">{filteredDesigns.findIndex((item) => item.id === selectedDesign.id) + 1} / {filteredDesigns.length}</p>
+                  <p className="text-sm text-white/60">{selectedCategoryId === 'all' ? 'Todas las categorías' : (initData?.designCategories || []).find((item) => item.id === selectedCategoryId)?.name || 'Categoría'}</p>
                 </div>
               ) : null}
             </div>
@@ -409,11 +570,68 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     );
   }
 
+  function renderCustomizerMockup(view: 'front' | 'back') {
+    const image = resolveMockupImage(selectedProduct, currentColor, view, selectedColorOption);
+    const isActiveView = selectedView === view;
+    const canEditView = customMode === 'brand_design'
+      || (customMode === 'user_upload' && uploadPlacementCodes.includes(view === 'front' ? 'FRONT' : 'BACK'));
+
+    return (
+      <button
+        key={view}
+        type="button"
+        onClick={() => { if (canEditView) setSelectedView(view); }}
+        className={`relative flex h-[260px] w-[180px] items-center justify-center rounded-[28px] border p-4 transition sm:h-[360px] sm:w-[240px] lg:h-[430px] lg:w-[280px] ${isActiveView ? 'border-white/40 bg-white/10 shadow-[0_24px_60px_rgba(0,0,0,0.38)]' : 'border-white/10 bg-white/[0.04] opacity-75'} ${canEditView ? 'cursor-pointer' : 'cursor-default'}`}
+      >
+        <img src={image} className="absolute inset-0 h-full w-full object-contain" alt={`T-Shirt ${view}`} />
+        <div className="absolute left-4 top-4 rounded-full bg-black/45 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm">
+          {view === 'front' ? 'Frente' : 'Espalda'}
+        </div>
+        {!canEditView ? <div className="absolute bottom-4 rounded-full bg-black/45 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">No disponible</div> : null}
+        {logoBelongsToView(logoPlacementCode, view)
+          ? selectedBrandLogo
+            ? <img
+                src={selectedBrandLogo.imageUrl}
+                alt={selectedBrandLogo.name}
+                className="absolute z-30 object-contain drop-shadow-md"
+                style={{
+                  ...logoPositionStyle(logoPlacementCode),
+                  width: `${Math.max(12, Math.min(22, selectedBrandLogo.widthCm * 2.4))}%`,
+                  height: 'auto',
+                  maxHeight: '14%',
+                }}
+              />
+            : <div className="absolute z-30 rounded-full bg-white px-2 py-1 text-[10px] font-black tracking-[0.18em] text-[#113f27] shadow" style={logoPositionStyle(logoPlacementCode)}>{logoOptionLabel(logoPlacementCode)}</div>
+          : null}
+        {isActiveView ? (
+          <>
+            <div ref={printAreaRef} className="absolute left-[30%] top-[25%] z-20 h-[50%] w-[40%] overflow-hidden border-2 border-dashed border-black/10">
+              {customMode === 'user_upload'
+                ? uploadedAssets[0]
+                  ? <>
+                      <img src={uploadedAssets[0].previewUrl} className="absolute cursor-grab object-contain" alt="Upload" onPointerDown={startDrag} style={{ ...printScaleStyle, left: `${layoutPosition.x}%`, top: `${layoutPosition.y}%`, transform: 'translate(-50%, -50%)' }} />
+                      {uploadedAssets.length > 1 ? <div className="absolute bottom-2 right-2 rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#113f27]">+{uploadedAssets.length - 1}</div> : null}
+                    </>
+                  : null
+                : selectedDesign
+                  ? <div onPointerDown={startDrag} className="absolute cursor-grab" style={{ ...printScaleStyle, left: `${layoutPosition.x}%`, top: `${layoutPosition.y}%`, transform: 'translate(-50%, -50%)' }}><img src={selectedDesign.imageUrl} alt={selectedDesign.name} className="h-full w-full object-contain drop-shadow-md" /><div className="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/92 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#113f27] shadow">{selectedDesign.code}</div></div>
+                  : null}
+            </div>
+            <div className="absolute inset-0 rounded-[28px] ring-2 ring-white/20" />
+          </>
+        ) : null}
+      </button>
+    );
+  }
+
   if (screen === 'category') {
     return (
-      <section className="flex min-h-screen flex-col items-center justify-center bg-[#113f27] p-8 text-white">
-        <div className="mb-12 text-center"><h1 className="mb-2 text-5xl font-extrabold">Sin Registro</h1><p className="opacity-80">Elegí qué querés personalizar hoy</p></div>
-        <div className="flex w-full max-w-2xl gap-8"><button onClick={() => setScreen('product')} className="flex h-48 flex-1 items-center justify-center rounded-2xl border border-white/40 bg-white/5 text-2xl tracking-widest text-[#3b82f6]">INDUMENTARIA</button><button className="flex h-48 flex-1 cursor-not-allowed items-center justify-center rounded-2xl border border-white/40 bg-white/5 text-2xl tracking-widest text-[#3b82f6] opacity-40">ACCESORIOS</button></div>
+      <section className="flex min-h-screen flex-col items-center justify-center bg-black p-8 text-white relative">
+        <div className="fixed top-[18%] left-1/2 -translate-x-1/2 opacity-70 pointer-events-none" style={{ width: '40vw' }}>
+          <img src="/src/assets/Logo.svg" alt="Logo" className="w-full h-auto mx-auto" />
+        </div>
+        <div className="mb-8 text-center relative z-10 mt-28"><p className="opacity-80 text-base font-medium" style={{ fontFamily: 'var(--font-body)' }}>Elegí qué querés personalizar hoy</p></div>
+        <div className="flex w-full max-w-2xl gap-8 relative z-10"><button onClick={() => setScreen('product')} className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold" style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}>INDUMENTARIA</button><button className="flex h-48 flex-1 cursor-not-allowed items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold opacity-40" style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}>ACCESORIOS</button></div>
         <div className="absolute right-4 top-4">
           <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} cartCount={cartCount} tone="dark" />
         </div>
@@ -423,33 +641,132 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
 
   if (screen === 'product') {
     return (
-      <section className="relative flex h-screen flex-col overflow-hidden bg-[#113f27]">
+      <section className="relative flex h-screen flex-col overflow-hidden bg-black">
         <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('category')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
-        <div className="flex flex-1 items-center justify-center pb-[45vh]"><img src={currentImage} alt="Model" className="max-h-[50vh] max-w-[90%] translate-y-8 object-contain drop-shadow-2xl" /></div>
-        <div className="absolute bottom-0 left-1/2 z-20 flex h-[44vh] w-full max-w-[600px] -translate-x-1/2 flex-col rounded-t-[40px] bg-white px-6 pb-6 pt-16 shadow-[0_-10px_40px_rgba(0,0,0,0.2)]"><h2 className="text-2xl font-extrabold text-[#111827]">{selectedProduct?.name || 'REMERA OVERSIZE'}</h2><p className="mt-3 flex-1 text-sm text-gray-500">{selectedProduct?.description || 'Remera de corte amplio y relajado.'}</p><div className="mb-4"><h3 className="mb-3 font-semibold text-[#111827]">Talles disponibles</h3><div className="flex gap-3">{(selectedProduct?.sizes || []).map((item) => <button key={item.sizeId} onClick={() => setSelectedSizeId(item.sizeId)} className={`rounded-full border px-5 py-2 font-semibold ${selectedSizeId === item.sizeId ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-800'}`}>{item.size.name}</button>)}</div></div><button disabled={!selectedSizeId} onClick={() => setScreen('selection')} className="w-full rounded-full bg-[#111827] p-4 font-bold text-white disabled:opacity-50">Continuar</button></div>
+        <div className="relative flex flex-1 items-center justify-center px-4 pb-[34vh] sm:px-8 lg:px-16">
+          <button type="button" onClick={() => cycleProduct('prev')} disabled={products.length < 2} className="absolute left-4 top-1/2 z-30 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/95 text-gray-700 shadow-lg transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40 sm:left-6 lg:left-[10%] lg:h-16 lg:w-16">
+            <ChevronLeft size={28} />
+          </button>
+          <img src={currentImage} alt="Model" className="relative z-10 max-h-[50vh] max-w-[82%] translate-y-8 object-contain drop-shadow-2xl sm:max-w-[74%] lg:max-w-[62%]" />
+          <button type="button" onClick={() => cycleProduct('next')} disabled={products.length < 2} className="absolute right-4 top-1/2 z-30 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/95 text-gray-700 shadow-lg transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40 sm:right-6 lg:right-[10%] lg:h-16 lg:w-16">
+            <ChevronRight size={28} />
+          </button>
+        </div>
+        <div className="absolute bottom-0 left-1/2 z-20 flex min-h-[24vh] w-full max-w-[600px] -translate-x-1/2 flex-col rounded-t-[40px] bg-white px-6 pb-4 pt-4 shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">Indumentaria</p>
+              <h2 className="mt-2 text-[1.9rem] font-extrabold uppercase leading-none tracking-[0.06em] text-[#111827]" style={{ fontFamily: 'var(--font-heading)' }}>{selectedProduct?.name || 'REMERA OVERSIZE'}</h2>
+              <p className="mt-2 text-sm text-gray-500">{selectedProduct?.description || 'Remera de corte amplio y relajado.'}</p>
+            </div>
+            {products.length > 1 ? <p className="shrink-0 text-sm font-medium text-gray-400">{(products.findIndex((item) => item.id === selectedProduct?.id) + 1) || 1} / {products.length}</p> : null}
+          </div>
+          <div className="mb-3 mt-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Talles disponibles</p>
+            <div className="flex flex-wrap gap-3">
+              {(selectedProduct?.sizes || []).map((item) => <button key={item.sizeId} onClick={() => setSelectedSizeId(item.sizeId)} className={`min-w-12 rounded-2xl border px-4 py-3 text-sm font-bold uppercase tracking-[0.08em] transition ${selectedSizeId === item.sizeId ? 'border-[#111827] bg-[#111827] text-white' : 'border-gray-200 bg-white text-gray-800'}`} style={{ fontFamily: 'var(--font-body)' }}>{item.size.name}</button>)}
+            </div>
+          </div>
+          <button disabled={!selectedSizeId} onClick={() => setScreen('mode')} className="w-full rounded-2xl bg-[#111827] px-6 py-3.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:opacity-50" style={{ fontFamily: 'var(--font-heading)' }}>Continuar</button>
+        </div>
+        <aside className="absolute right-4 top-[45%] z-40 hidden -translate-y-1/2 md:flex lg:right-6">
+          <div className="flex flex-col gap-3 rounded-[28px] border border-black/10 bg-white/92 p-3 shadow-xl backdrop-blur-md">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">Color</p>
+            <div className="flex flex-col gap-2">
+            {(selectedProduct?.colors || []).slice(0, 8).map((item) => (
+              <button
+                key={item.colorId}
+                type="button"
+                onClick={() => setSelectedColorId(item.colorId)}
+                className={`flex h-11 w-11 items-center justify-center rounded-full border border-black/10 ${selectedColorId === item.colorId ? 'ring-4 ring-gray-900' : ''}`}
+                style={{ backgroundColor: item.color.hex || '#ffffff' }}
+                aria-label={item.color.name}
+                title={item.color.name}
+              />
+            ))}
+            </div>
+            <p className="px-1 text-xs font-medium text-gray-500">{selectedColorOption?.color.name || 'Sin color'}</p>
+          </div>
+        </aside>
+        <div className="absolute bottom-[12.5rem] left-4 right-4 z-30 md:hidden">
+          <div className="rounded-3xl border border-black/10 bg-white/90 p-4 shadow-lg backdrop-blur-md">
+            <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Color</p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              {(selectedProduct?.colors || []).slice(0, 8).map((item) => (
+                <button
+                  key={item.colorId}
+                  type="button"
+                  onClick={() => setSelectedColorId(item.colorId)}
+                  className={`h-10 w-10 rounded-full border border-black/10 ${selectedColorId === item.colorId ? 'ring-4 ring-gray-900' : ''}`}
+                  style={{ backgroundColor: item.color.hex || '#ffffff' }}
+                  aria-label={item.color.name}
+                />
+              ))}
+            </div>
+            <p className="mt-3 text-sm text-gray-500">{selectedColorOption?.color.name || 'Sin color disponible'}</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (screen === 'mode') {
+    return (
+      <section className="flex min-h-screen flex-col items-center justify-center bg-black p-8 text-white relative">
+        <div className="fixed top-[18%] left-1/2 -translate-x-1/2 opacity-70 pointer-events-none" style={{ width: '40vw' }}>
+          <img src="/src/assets/Logo.svg" alt="Logo" className="w-full h-auto mx-auto" />
+        </div>
+        <header className="absolute top-0 z-10 flex w-full justify-between p-6">
+          <button onClick={() => setScreen('product')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg text-black"><ChevronLeft /></button>
+          <Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg text-black"><ShoppingCart /></Link>
+        </header>
+        <div className="mb-8 text-center relative z-10 mt-28">
+          <p className="opacity-80 text-base font-medium" style={{ fontFamily: 'var(--font-body)' }}>Elegí el contenido de la estampa</p>
+        </div>
+        <div className="flex w-full max-w-2xl gap-8 relative z-10">
+          <button
+            onClick={() => { setCustomMode('brand_design'); setScreen('selection'); }}
+            className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold"
+            style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}
+          >
+            DISEÑOS DE LA MARCA
+          </button>
+          <button
+            onClick={() => { setCustomMode('user_upload'); setScreen('selection'); }}
+            className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold"
+            style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}
+          >
+            PERSONALIZADO
+          </button>
+        </div>
       </section>
     );
   }
 
   if (screen === 'selection') {
     return (
-      <section className="relative flex min-h-screen flex-col overflow-hidden bg-[#113f27]">
-        <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('product')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
-        <div className="flex flex-1 items-center justify-center px-4 pb-10 pt-28"><div className="w-full max-w-5xl rounded-[36px] bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.22)] lg:p-8"><h2 className="text-3xl font-extrabold text-[#111827]">Elegí el contenido a estampar</h2><p className="mt-2 text-sm text-gray-500">Definimos modo, plantilla o estampa antes de pasar al mockup.</p><div className="mt-6 flex flex-wrap gap-3"><button onClick={() => setCustomMode('brand_design')} className={`rounded-full px-5 py-3 text-sm font-semibold ${customMode === 'brand_design' ? 'bg-[#111827] text-white' : 'border bg-white text-gray-700'}`}>Diseño de la marca</button><button onClick={() => setCustomMode('user_upload')} className={`rounded-full px-5 py-3 text-sm font-semibold ${customMode === 'user_upload' ? 'bg-[#111827] text-white' : 'border bg-white text-gray-700'}`}>Personalizado</button></div>{customMode === 'brand_design' ? renderBrandDesignPicker() : <div className="mt-6 space-y-6"><div><h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">Tipo de personalizado</h3><div className="flex flex-wrap gap-2">{(['photo_simple', 'photo_collage', 'pets'] as UploadMode[]).map((mode) => <button key={mode} onClick={() => setSelectedUploadMode(mode)} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedUploadMode === mode ? 'bg-gray-900 text-white' : 'border bg-white text-gray-700'}`}>{uploadModeLabel(mode)}</button>)}</div></div><div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]"><div><h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">Plantillas</h3><div className="grid gap-3 sm:grid-cols-2">{filteredUploadTemplates.map((item) => <button key={item.id} onClick={() => { setSelectedTemplateId(item.id); setUploadedAssets([]); setUploadError(null); }} className={`rounded-2xl border p-4 text-left ${selectedTemplateId === item.id ? 'border-gray-900 bg-gray-900 text-white' : 'bg-gray-50'}`}><p className="text-xs font-bold uppercase tracking-[0.24em]">{item.code}</p><p className="mt-2 text-base font-semibold">{item.name}</p><p className={`mt-2 text-sm ${selectedTemplateId === item.id ? 'text-white/70' : 'text-gray-500'}`}>{item.requiredImageCount} foto{item.requiredImageCount > 1 ? 's' : ''}</p></button>)}</div></div><div><h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">Archivos</h3><label className="flex min-h-44 cursor-pointer items-center justify-center rounded-3xl border-2 border-dashed border-gray-200 bg-gray-50 text-gray-400"><div className="text-center"><UploadCloud size={36} className="mx-auto" /><p className="mt-3 text-sm font-medium text-gray-700">Subí tus imágenes</p><p className="mt-1 text-xs text-gray-500">PNG, JPG o WEBP. Requeridas: {requiredAssetCount || 1}</p></div><input type="file" multiple={(requiredAssetCount || 1) > 1} className="hidden" onChange={handleFileUpload} /></label>{uploadError && <p className="mt-2 text-sm text-rose-600">{uploadError}</p>}{uploadedAssets.length ? <p className="mt-2 text-sm text-gray-600">{uploadedAssets.length} archivo(s) listos.</p> : null}{selectedTemplate?.allowsText ? <input className="mt-4 w-full rounded-xl border border-gray-200 bg-gray-50 p-3" value={customText} onChange={(event) => setCustomText(event.target.value)} placeholder={selectedTemplate.textLabel || 'Texto'} /> : null}</div></div></div>}<div className="mt-8 flex items-center justify-between gap-4 border-t border-gray-100 pt-6"><div className="text-sm text-gray-500">{customMode === 'brand_design' ? (selectedDesign ? `Seleccionado: ${selectedDesign.name}` : 'Elegí una estampa para continuar.') : uploadedAssets.length >= requiredAssetCount && requiredAssetCount > 0 ? `Archivos listos: ${uploadedAssets.length}` : `Subí ${requiredAssetCount || 1} archivo(s) para continuar.`}</div><button disabled={(customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && uploadedAssets.length < requiredAssetCount)} onClick={() => setScreen('customizer')} className="rounded-full bg-[#111827] px-6 py-3 font-bold text-white disabled:opacity-50">Ir al mockup</button></div></div></div>
+      <section className="relative flex min-h-screen flex-col overflow-hidden bg-black">
+        <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('mode')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
+        <div className="flex flex-1 items-center justify-center px-4 pb-10 pt-28"><div className="w-full max-w-5xl rounded-lg bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.22)] lg:p-8"><h2 className="text-3xl font-extrabold text-[#111827]">{customMode === 'brand_design' ? 'Elegí el diseño de la marca' : 'Elegí tu contenido personalizado'}</h2><p className="mt-2 text-sm text-gray-500">{customMode === 'brand_design' ? 'Seleccioná la estampa que querés aplicar antes de pasar al mockup.' : 'Subí tus imágenes. El tamaño, la cara de la prenda, el color y el logo se eligen en la siguiente pantalla.'}</p>{customMode === 'brand_design' ? renderBrandDesignPicker() : <div className="mt-6 space-y-6"><div><div className="flex flex-wrap gap-4">{(['photo_simple', 'photo_collage', 'pets'] as UploadMode[]).map((mode) => <button key={mode} onClick={() => { setSelectedUploadMode(mode); setUploadedAssets([]); setUploadError(null); setCustomText(''); }} className={`px-2 py-1 text-sm font-bold uppercase transition-colors ${selectedUploadMode === mode ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`} style={{ fontFamily: 'var(--font-heading)' }}>{uploadModeLabel(mode)}</button>)}</div></div><div><h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">{selectedUploadMode === 'photo_simple' ? 'Foto' : 'Archivos'}</h3><label className="flex min-h-56 cursor-pointer items-center justify-center rounded-lg bg-gray-50 text-gray-400"><div className="text-center"><UploadCloud size={36} className="mx-auto" /><p className="mt-3 text-sm font-medium text-gray-700">{selectedUploadMode === 'photo_simple' ? 'Subí tu imagen' : 'Subí tus imágenes'}</p><p className="mt-1 text-xs text-gray-500">PNG, JPG o WEBP. Permitidas: {selectedUploadMode === 'photo_simple' ? '1' : formatCountList(uploadCountOptions)} imagen{selectedUploadMode === 'photo_simple' || uploadCountOptions.every((count) => count === 1) ? '' : 'es'}</p></div><input type="file" multiple={selectedUploadMode !== 'photo_simple'} className="hidden" onChange={handleFileUpload} /></label>{uploadError && <p className="mt-2 text-sm text-rose-600">{uploadError}</p>}{uploadedAssets.length ? <p className="mt-2 text-sm text-gray-600">{uploadedAssets.length} archivo(s) listo(s).</p> : null}{inputAllowsText ? <input className="mt-4 w-full rounded-xl bg-gray-50 p-3" value={customText} onChange={(event) => setCustomText(event.target.value)} placeholder={inputTextLabel} /> : null}</div></div>}<div className="mt-8 flex items-center justify-between gap-4 pt-6"><div className="text-sm text-gray-500">{customMode === 'brand_design' ? (selectedDesign ? `Seleccionado: ${selectedDesign.name}` : 'Elegí una estampa para continuar.') : selectedTemplate && uploadedAssets.length ? `Contenido listo: ${selectedContentLabel}` : `Subí ${selectedUploadMode === 'photo_simple' ? '1 imagen' : `${formatCountList(uploadCountOptions)} imágenes`} para continuar.`}</div><button disabled={(customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && (!uploadedAssets.length || !selectedTemplate))} onClick={() => setScreen('customizer')} className="rounded-md bg-[#111827] px-6 py-3 font-bold text-white disabled:opacity-50">Ir al mockup</button></div></div></div>
       </section>
     );
   }
   return (
-    <section className="relative flex min-h-screen flex-col overflow-hidden bg-[#113f27] lg:h-screen">
-      <header className="absolute left-4 top-4 z-50 flex items-center gap-4 lg:left-6 lg:top-6"><button onClick={() => setScreen('selection')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><div><h1 className="text-2xl font-bold text-white">Personalizar</h1><p className="text-sm text-white/70">{selectedProduct?.name}</p></div></header>
+    <section className={`relative flex min-h-screen flex-col overflow-hidden lg:h-screen ${isDarkGarment ? 'bg-white' : 'bg-black'}`}>
+      <header className="absolute left-4 top-4 z-50 flex items-center gap-4 lg:left-6 lg:top-6"><button onClick={() => setScreen('selection')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><div><h1 className={`text-2xl font-bold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>Personalizar</h1><p className={`text-sm ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>{selectedProduct?.name}</p></div></header>
       <aside className="absolute right-4 top-4 z-50 lg:right-6 lg:top-6">
         <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} cartCount={cartCount} tone="dark" />
       </aside>
-      <aside className="absolute left-4 top-28 z-40 hidden w-[200px] flex-col gap-3 lg:flex"><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Selección</p><p className="mt-3 text-sm font-semibold text-white">{selectedModeLabel}</p><p className="mt-1 text-sm text-white/70 line-clamp-2">{selectedContentLabel}</p></div><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Tamaño</p><div className="mt-3 flex flex-col gap-2">{transferSizeOptions.map((item) => <button key={item.id} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-2xl px-4 py-3 text-left text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>{formatTransferSize(item.sizeCode)}</button>)}</div></div><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Logo</p><p className="mt-2 text-xs text-white/70">Elegí una ubicación compatible.</p>{logoAutoNotice ? <p className="mt-3 rounded-2xl bg-white/12 px-3 py-2 text-xs leading-5 text-white">{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-col gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-2xl px-4 py-3 text-left text-sm font-semibold ${logoPlacementCode === item.code ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></aside>
-      <main className="relative z-10 flex flex-1 items-start justify-center px-4 pb-[28rem] pt-24 sm:pb-[25rem] lg:pb-[10rem] lg:pt-20"><div className="relative flex h-[330px] w-[330px] max-w-[88vw] items-center justify-center lg:-mt-2 lg:h-[500px] lg:w-[500px]"><img src={currentImage} className="absolute inset-0 h-full w-full object-contain" alt="T-Shirt" /><div className="absolute z-20 rounded-full bg-white px-2 py-1 text-[10px] font-black tracking-[0.18em] text-[#113f27] shadow" style={logoPositionStyle(logoPlacementCode)}>{logoOptionLabel(logoPlacementCode)}</div><div ref={printAreaRef} className="absolute left-[30%] top-[25%] z-20 h-[50%] w-[40%] overflow-hidden border-2 border-dashed border-black/10">{customMode === 'user_upload' ? uploadedAssets[0] ? <><img src={uploadedAssets[0].previewUrl} className={`absolute cursor-grab object-contain ${printScaleClass}`} alt="Upload" onPointerDown={startDrag} style={{ left: `${layoutPosition.x}%`, top: `${layoutPosition.y}%`, transform: 'translate(-50%, -50%)' }} />{uploadedAssets.length > 1 ? <div className="absolute bottom-2 right-2 rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#113f27]">+{uploadedAssets.length - 1}</div> : null}</> : null : selectedDesign ? <div onPointerDown={startDrag} className={`absolute cursor-grab ${printScaleClass}`} style={{ left: `${layoutPosition.x}%`, top: `${layoutPosition.y}%`, transform: 'translate(-50%, -50%)' }}><img src={selectedDesign.imageUrl} alt={selectedDesign.name} className="max-h-full max-w-full object-contain drop-shadow-md" /><div className="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/92 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#113f27] shadow">{selectedDesign.code}</div></div> : null}</div></div></main>
-      <aside className="absolute right-4 top-[45%] z-50 hidden -translate-y-[80%] flex-col gap-6 lg:right-6 lg:flex">{customMode === 'brand_design' ? <div className="flex flex-col gap-1 rounded-3xl border border-white/30 bg-white/15 p-2 shadow-xl backdrop-blur-md"><button onClick={() => setSelectedView('front')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'front' ? 'bg-white text-[#113f27]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'back' ? 'bg-white text-[#113f27]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Espalda</button></div> : <div className="rounded-3xl border border-white/30 bg-white/15 px-4 py-6 text-center text-sm font-semibold text-white shadow-xl backdrop-blur-md">{selectedTemplate?.placement?.code === 'BACK' ? 'Espalda' : 'Frente'}</div>}<div className="flex flex-col gap-2 rounded-full border border-white/30 bg-white/15 p-2 shadow-xl backdrop-blur-md">{(selectedProduct?.colors || []).slice(0, 4).map((item) => <button key={item.colorId} onClick={() => setSelectedColorId(item.colorId)} className={`h-11 w-11 rounded-full ${selectedColorId === item.colorId ? 'ring-4 ring-white' : ''}`} style={{ backgroundColor: item.color.hex || '#ffffff' }} />)}</div></aside>
-      <div className="absolute bottom-[11.25rem] left-4 right-4 z-30 space-y-3 lg:hidden"><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md">{customMode === 'brand_design' ? <><p className="text-xs uppercase tracking-[0.2em] text-white/70">Vista</p><div className="mt-3 flex gap-2"><button onClick={() => setSelectedView('front')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'front' ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'back' ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>Espalda</button></div></> : <p className="text-sm font-semibold text-white">{selectedTemplate?.placement?.code === 'BACK' ? 'Vista espalda' : 'Vista frente'}</p>}</div><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Color</p><div className="mt-3 flex flex-wrap gap-3">{(selectedProduct?.colors || []).slice(0, 4).map((item) => <button key={item.colorId} onClick={() => setSelectedColorId(item.colorId)} className={`h-10 w-10 rounded-full ${selectedColorId === item.colorId ? 'ring-4 ring-white' : ''}`} style={{ backgroundColor: item.color.hex || '#ffffff' }} aria-label={item.color.name} />)}</div></div><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Tamaño</p><div className="mt-3 flex flex-wrap gap-2">{transferSizeOptions.map((item) => <button key={item.id} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>{formatTransferSize(item.sizeCode)}</button>)}</div></div><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Logo</p>{logoAutoNotice ? <p className="mt-2 rounded-2xl bg-white/12 px-3 py-2 text-xs leading-5 text-white">{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-full px-4 py-2 text-sm font-semibold ${logoPlacementCode === item.code ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></div>
-      <div className="relative z-30 mt-auto flex w-full max-w-[760px] flex-col overflow-hidden rounded-t-[34px] bg-white px-5 py-4 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] lg:absolute lg:bottom-0 lg:left-1/2 lg:w-[92vw] lg:max-w-[760px] lg:-translate-x-1/2 lg:flex-row lg:rounded-t-[40px] lg:px-6 lg:py-4"><div className="min-w-0 flex flex-1 flex-col justify-center pr-0 lg:pr-6"><h3 className="mb-1 text-lg font-bold text-[#111827]">Composición final</h3><div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedModeLabel}</span><span className="rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700 max-w-full truncate">{selectedContentLabel}</span></div><p className="mt-3 text-xs text-gray-500">Tamaño {formatTransferSize(selectedTransferSizeCode)} · Logo {logoOptionLabel(logoPlacementCode)}</p></div><div className="mt-4 flex w-full flex-col justify-between border-t border-gray-100 pt-4 lg:mt-0 lg:w-[250px] lg:flex-none lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0"><div><p className="text-sm text-gray-500">Total estimado</p><h3 className="text-3xl font-bold text-[#111827]">{formatMoney(price)}</h3><p className="mt-1 break-all text-xs text-gray-500">{configurationCode || 'Configuración pendiente'}</p>{!isValid && <p className="mt-1 text-xs text-red-500">Configuración aún no válida</p>}</div>{!session ? <><AuthPanel mode={authMode} loading={authLoading} error={authError} email={authEmail} password={authPassword} setEmail={setAuthEmail} setPassword={setAuthPassword} onSubmit={submitAuth} onModeChange={setAuthMode} /><Link to="/auth?redirect=/cart" className="mt-3 inline-flex justify-center rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700">Abrir acceso completo</Link></> : <button disabled={!isValid || saving || (customMode === 'user_upload' && uploadedAssets.length < requiredAssetCount)} onClick={() => void addToCart()} className="mt-4 w-full rounded-xl bg-[#111827] p-4 font-bold text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Comprar ahora'}</button>}{saveError && <p className="mt-2 text-sm text-rose-600">{saveError}</p>}</div></div>
+      <aside className="absolute left-4 top-28 z-40 hidden w-[200px] flex-col gap-3 lg:flex"><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Selección</p><p className={`mt-3 text-sm font-semibold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>{selectedModeLabel}</p><p className={`mt-1 text-sm line-clamp-2 ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>{selectedContentLabel}</p></div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Tamaño</p><div className="mt-3 flex flex-col gap-2">{transferSizeOptions.map((item) => <button key={item.id} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-2xl px-4 py-3 text-left text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'bg-white text-[#113f27] border border-black/10' : isDarkGarment ? 'bg-black/[0.05] text-[#111827] border border-black/10' : 'bg-white/10 text-white'}`}>{formatTransferSize(item.sizeCode)}</button>)}</div></div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Logo</p><p className={`mt-2 text-xs ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Elegí una ubicación compatible.</p>{logoAutoNotice ? <p className={`mt-3 rounded-2xl px-3 py-2 text-xs leading-5 ${isDarkGarment ? 'bg-black/[0.05] text-[#111827]' : 'bg-white/12 text-white'}`}>{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-col gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-2xl px-4 py-3 text-left text-sm font-semibold ${logoPlacementCode === item.code ? 'bg-white text-[#113f27] border border-black/10' : isDarkGarment ? 'bg-black/[0.05] text-[#111827] border border-black/10' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></aside>
+      <main className="relative z-10 flex flex-1 items-start justify-center px-4 pb-[22rem] pt-24 sm:pb-[18rem] lg:pb-[8rem] lg:pt-20">
+        <div className="flex w-full max-w-[760px] items-center justify-center gap-3 sm:gap-5 lg:max-w-[980px]">
+          {renderCustomizerMockup('front')}
+          {renderCustomizerMockup('back')}
+        </div>
+      </main>
+      <aside className="absolute right-4 top-[45%] z-50 hidden -translate-y-[80%] flex-col gap-6 lg:right-6 lg:flex">{customMode === 'brand_design' || (customMode === 'user_upload' && uploadPlacementCodes.length > 1) ? <div className="flex flex-col gap-1 rounded-3xl border border-white/30 bg-white/15 p-2 shadow-xl backdrop-blur-md"><button onClick={() => setSelectedView('front')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'front' ? 'bg-white text-[#113f27]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'back' ? 'bg-white text-[#113f27]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Espalda</button></div> : <div className="rounded-3xl border border-white/30 bg-white/15 px-4 py-6 text-center text-sm font-semibold text-white shadow-xl backdrop-blur-md">{selectedTemplate?.placement?.code === 'BACK' ? 'Espalda' : 'Frente'}</div>}</aside>
+      <div className="absolute bottom-[11.25rem] left-4 right-4 z-30 space-y-3 lg:hidden"><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md">{customMode === 'brand_design' || (customMode === 'user_upload' && uploadPlacementCodes.length > 1) ? <><p className="text-xs uppercase tracking-[0.2em] text-white/70">Vista</p><div className="mt-3 flex gap-2"><button onClick={() => setSelectedView('front')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'front' ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'back' ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>Espalda</button></div></> : <p className="text-sm font-semibold text-white">{selectedTemplate?.placement?.code === 'BACK' ? 'Vista espalda' : 'Vista frente'}</p>}</div><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Tamaño</p><div className="mt-3 flex flex-wrap gap-2">{transferSizeOptions.map((item) => <button key={item.id} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>{formatTransferSize(item.sizeCode)}</button>)}</div></div><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Logo</p>{logoAutoNotice ? <p className="mt-2 rounded-2xl bg-white/12 px-3 py-2 text-xs leading-5 text-white">{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-full px-4 py-2 text-sm font-semibold ${logoPlacementCode === item.code ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></div>
+      <div className="relative z-30 mt-auto flex w-full max-w-[760px] flex-col overflow-hidden rounded-t-[34px] bg-white px-5 py-3 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] lg:absolute lg:bottom-0 lg:left-1/2 lg:w-[92vw] lg:max-w-[760px] lg:-translate-x-1/2 lg:flex-row lg:rounded-t-[40px] lg:px-6 lg:py-3"><div className="min-w-0 flex flex-1 flex-col justify-center pr-0 lg:pr-6"><h3 className="mb-1 text-lg font-bold text-[#111827]">Composición final</h3><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedModeLabel}</span><span className="rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700 max-w-full truncate">{selectedContentLabel}</span><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedView === 'front' ? 'Editando frente' : 'Editando espalda'}</span></div><p className="mt-2 text-xs text-gray-500">Tamaño {formatTransferSize(selectedTransferSizeCode)} · Logo {logoOptionLabel(logoPlacementCode)}</p></div><div className="mt-3 flex w-full flex-col justify-between border-t border-gray-100 pt-3 lg:mt-0 lg:w-[250px] lg:flex-none lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0"><div><p className="text-sm text-gray-500">Total estimado</p><h3 className="text-3xl font-bold text-[#111827]">{formatMoney(price)}</h3><p className="mt-1 break-all text-xs text-gray-500">{configurationCode || 'Configuración pendiente'}</p>{stockValidationMessage ? <p className={`mt-1 text-xs ${hasResolvedConfiguration && !isValid ? 'text-red-500' : 'text-amber-600'}`}>{stockValidationMessage}</p> : null}</div>{!session ? <><AuthPanel mode={authMode} loading={authLoading} error={authError} email={authEmail} password={authPassword} setEmail={setAuthEmail} setPassword={setAuthPassword} onSubmit={submitAuth} onModeChange={setAuthMode} /><Link to="/auth?redirect=/cart" className="mt-3 inline-flex justify-center rounded-xl px-4 py-3 text-sm font-semibold text-gray-700">Abrir acceso completo</Link></> : <button disabled={saving || (hasResolvedConfiguration && !isValid) || (customMode === 'user_upload' && uploadedAssets.length < requiredAssetCount)} onClick={() => void addToCart()} className="mt-3 w-full rounded-xl bg-[#111827] p-3 font-bold text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Comprar ahora'}</button>}{saveError && <p className="mt-2 text-sm text-rose-600">{saveError}</p>}</div></div>
     </section>
   );
 }

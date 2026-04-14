@@ -11,6 +11,12 @@ type Placement = {
   active: boolean;
 };
 
+type Color = {
+  id: string;
+  name: string;
+  hex: string;
+};
+
 type GarmentModel = {
   id: string;
   name: string;
@@ -41,6 +47,7 @@ type BrandLogo = {
   heightCm: number;
   active: boolean;
   placements: Array<{ id: string; placement?: Placement }>;
+  colors: Array<{ id: string; colorId: string; color?: Color }>;
 };
 
 type AreaForm = {
@@ -58,6 +65,7 @@ type LogoForm = {
   widthCm: string;
   heightCm: string;
   placementCodes: string[];
+  colorIds: string[];
 };
 
 const DEFAULTS_BY_CODE: Record<string, AreaForm> = {
@@ -87,7 +95,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-function buildEmptyLogoForm(logoPlacements: Placement[]): LogoForm {
+function buildEmptyLogoForm(logoPlacements: Placement[], colors: Color[]): LogoForm {
   return {
     name: '',
     code: '',
@@ -95,6 +103,7 @@ function buildEmptyLogoForm(logoPlacements: Placement[]): LogoForm {
     widthCm: '',
     heightCm: '',
     placementCodes: logoPlacements.map((item) => item.code).slice(0, 1),
+    colorIds: colors.map((item) => item.id),
   };
 }
 
@@ -103,6 +112,7 @@ export default function ProductionConfigAdmin() {
   const [models, setModels] = useState<GarmentModel[]>([]);
   const [printAreas, setPrintAreas] = useState<PrintArea[]>([]);
   const [brandLogos, setBrandLogos] = useState<BrandLogo[]>([]);
+  const [colors, setColors] = useState<Color[]>([]);
   const [forms, setForms] = useState<Record<string, AreaForm>>({});
   const [bootstrapping, setBootstrapping] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -110,7 +120,7 @@ export default function ProductionConfigAdmin() {
   const [savingLogo, setSavingLogo] = useState(false);
   const [editingLogoId, setEditingLogoId] = useState<string | null>(null);
   const [deletingLogoId, setDeletingLogoId] = useState<string | null>(null);
-  const [logoForm, setLogoForm] = useState<LogoForm>(buildEmptyLogoForm([]));
+  const [logoForm, setLogoForm] = useState<LogoForm>(buildEmptyLogoForm([], []));
 
   const printPlacements = useMemo(
     () => placements.filter((item) => item.kind === 'print' && (item.code === 'FRONT' || item.code === 'BACK')),
@@ -144,21 +154,24 @@ export default function ProductionConfigAdmin() {
     setLogoForm((current) => ({
       ...current,
       placementCodes: current.placementCodes.length ? current.placementCodes : logoPlacements.map((item) => item.code).slice(0, 1),
+      colorIds: current.colorIds.length ? current.colorIds : colors.map((item) => item.id),
     }));
-  }, [models, printAreas, printPlacements, logoPlacements]);
+  }, [models, printAreas, printPlacements, logoPlacements, colors]);
 
   async function loadData() {
-    const [placementsResponse, printAreasResponse, modelsResponse, logosResponse] = await Promise.all([
+    const [placementsResponse, printAreasResponse, modelsResponse, logosResponse, catalogResponse] = await Promise.all([
       axios.get('/api/admin/placements'),
       axios.get('/api/admin/print-areas'),
       axios.get('/api/admin/garment-models'),
       axios.get('/api/admin/brand-logos'),
+      axios.get('/api/catalog/init'),
     ]);
 
     setPlacements(placementsResponse.data || []);
     setPrintAreas(printAreasResponse.data || []);
     setModels(modelsResponse.data || []);
     setBrandLogos(logosResponse.data || []);
+    setColors(catalogResponse.data.colors || []);
   }
 
   async function bootstrapPlacements() {
@@ -212,6 +225,14 @@ export default function ProductionConfigAdmin() {
     });
   }
 
+  function toggleLogoColor(colorId: string) {
+    setLogoForm((current) => {
+      const exists = current.colorIds.includes(colorId);
+      const next = exists ? current.colorIds.filter((item) => item !== colorId) : [...current.colorIds, colorId];
+      return { ...current, colorIds: next.length ? next : current.colorIds };
+    });
+  }
+
   async function uploadLogoFile(file: File) {
     setUploadingLogo(true);
     try {
@@ -239,6 +260,7 @@ export default function ProductionConfigAdmin() {
         widthCm: Number(logoForm.widthCm),
         heightCm: Number(logoForm.heightCm),
         placementCodes: logoForm.placementCodes,
+        colorIds: logoForm.colorIds,
       };
 
       if (editingLogoId) {
@@ -256,7 +278,7 @@ export default function ProductionConfigAdmin() {
 
   function resetLogoForm() {
     setEditingLogoId(null);
-    setLogoForm(buildEmptyLogoForm(logoPlacements));
+    setLogoForm(buildEmptyLogoForm(logoPlacements, colors));
   }
 
   function startEditingLogo(logo: BrandLogo) {
@@ -268,6 +290,7 @@ export default function ProductionConfigAdmin() {
       widthCm: String(logo.widthCm),
       heightCm: String(logo.heightCm),
       placementCodes: logo.placements.map((item) => item.placement?.code).filter((item): item is string => Boolean(item)),
+      colorIds: logo.colors.map((item) => item.colorId),
     });
   }
 
@@ -324,7 +347,7 @@ export default function ProductionConfigAdmin() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-gray-800">Logos de marca</h2>
-              <p className="mt-1 text-sm text-gray-500">Carga logos con medidas fisicas y ubicaciones permitidas.</p>
+              <p className="mt-1 text-sm text-gray-500">Carga logos con medidas fisicas, ubicaciones y colores permitidos.</p>
             </div>
             {editingLogoId ? (
               <button type="button" onClick={resetLogoForm} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
@@ -411,6 +434,25 @@ export default function ProductionConfigAdmin() {
             </div>
           </div>
 
+          <div className="mt-4">
+            <label className="mb-2 block text-sm font-medium text-gray-700">Colores permitidos</label>
+            <div className="flex flex-wrap gap-2">
+              {colors.map((color) => (
+                <button
+                  key={color.id}
+                  type="button"
+                  onClick={() => toggleLogoColor(color.id)}
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
+                    logoForm.colorIds.includes(color.id) ? 'bg-gray-900 text-white' : 'border border-gray-200 bg-white text-gray-700'
+                  }`}
+                >
+                  <span className="h-4 w-4 rounded-full border border-black/10" style={{ backgroundColor: color.hex }} />
+                  {color.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-5 flex justify-end">
             <button type="submit" disabled={savingLogo} className="rounded-xl bg-gray-900 px-5 py-3 font-medium text-white disabled:opacity-50">
               {savingLogo ? 'Guardando...' : editingLogoId ? 'Actualizar logo' : 'Guardar logo'}
@@ -438,6 +480,14 @@ export default function ProductionConfigAdmin() {
                       {logo.placements.map((item) => (
                         <span key={item.id} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-700">
                           {item.placement?.name || item.placement?.code}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {logo.colors.map((item) => (
+                        <span key={item.id} className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-700">
+                          <span className="h-3 w-3 rounded-full border border-black/10" style={{ backgroundColor: item.color?.hex || '#ffffff' }} />
+                          {item.color?.name || item.colorId}
                         </span>
                       ))}
                     </div>

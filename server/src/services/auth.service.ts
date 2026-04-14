@@ -15,7 +15,7 @@ class AuthService {
     const errors: string[] = [];
 
     if (password.length < 6) {
-      errors.push('Password must be at least 6 characters');
+      errors.push('La contraseña debe tener al menos 6 caracteres');
     }
 
     return {
@@ -29,7 +29,7 @@ class AuthService {
 
     // Validate email
     if (!this.validateEmail(email)) {
-      throw new Error('Invalid email format');
+      throw new Error('Ingresá un email válido');
     }
 
     // Validate password
@@ -44,7 +44,7 @@ class AuthService {
     });
 
     if (existingUser) {
-      throw new Error('User with this email already exists');
+      throw new Error('Ya existe una cuenta con ese email');
     }
 
     // Hash password
@@ -82,14 +82,14 @@ class AuthService {
     });
 
     if (!user) {
-      throw new Error('Invalid email or password');
+      throw new Error('Email o contraseña incorrectos');
     }
 
     // Compare passwords
     const isPasswordValid = await bcryptjs.compare(password, user.password);
 
     if (!isPasswordValid) {
-      throw new Error('Invalid email or password');
+      throw new Error('Email o contraseña incorrectos');
     }
 
     // Generate JWT
@@ -125,7 +125,7 @@ class AuthService {
       const decoded = jwt.verify(token, this.jwtSecret) as JWTPayload;
       return decoded;
     } catch (err) {
-      throw new Error('Invalid or expired token');
+      throw new Error('Tu sesión venció. Ingresá nuevamente.');
     }
   }
 }

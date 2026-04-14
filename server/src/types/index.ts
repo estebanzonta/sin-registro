@@ -211,6 +211,7 @@ export interface BrandLogo {
   heightCm: number;
   active: boolean;
   placements?: BrandLogoPlacement[];
+  colors?: BrandLogoColor[];
 }
 
 export interface BrandLogoPlacement {
@@ -218,6 +219,13 @@ export interface BrandLogoPlacement {
   brandLogoId: string;
   placementId: string;
   placement?: Placement;
+}
+
+export interface BrandLogoColor {
+  id: string;
+  brandLogoId: string;
+  colorId: string;
+  color?: Color;
 }
 
 export interface CatalogInitResponse {

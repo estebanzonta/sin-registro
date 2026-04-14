@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { CartItem, Cart, AddToCartRequest, UpdateCartItemRequest, CartResponse } from '../types/cart.js';
 import { ConfiguratorService } from './configurator.service.js';
+import { AppError } from '../middleware/errorHandler.js';
 
 // In-memory storage for carts (keyed by userId)
 // In production, this should move to persistent storage
@@ -44,6 +45,10 @@ export class CartService {
       uploadTemplateId: request.uploadTemplateId,
       transferSizeCode: request.transferSizeCode,
     });
+
+    if (!config.valid) {
+      throw new AppError('No hay stock disponible para esta configuración.', 400);
+    }
 
     const cartItem: CartItem = {
       id: itemId,
