@@ -2,12 +2,12 @@ import type { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { getCatalogInitHandler, getDesignsHandler, getGarmentModelHandler } from '../handlers/catalog.handlers.js';
 
-export const getCatalogInit = asyncHandler(async (req: Request, res: Response) => {
+export const getCatalogInit = asyncHandler(async (_req: Request, res: Response) => {
   const data = await getCatalogInitHandler();
   res.json(data);
 });
 
-export const getDesigns = asyncHandler(async (req: Request, res: Response) => {
+export const getDesigns = asyncHandler(async (_req: Request, res: Response) => {
   const designs = await getDesignsHandler();
   res.json(designs);
 });

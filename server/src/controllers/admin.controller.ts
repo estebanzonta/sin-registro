@@ -28,7 +28,7 @@ function parseImageDataUrl(dataUrl: string) {
   };
 }
 
-export const getGarmentModels = asyncHandler(async (req: Request, res: Response) => {
+export const getGarmentModels = asyncHandler(async (_req: Request, res: Response) => {
   const models = await prisma.garmentModel.findMany({
     include: {
       category: true,
@@ -46,7 +46,7 @@ export const createGarmentModel = asyncHandler(async (req: Request, res: Respons
   const model = await prisma.$transaction(async (tx) => {
     const createdModel = await tx.garmentModel.create({
       data: {
-        categoryId,
+        categoryId: categoryId as string,
         name,
         slug,
         description,
