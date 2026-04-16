@@ -1,6 +1,6 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
-import {
+import type {
   ConfiguratorRequest,
   ConfiguratorResponse,
   Placement,
