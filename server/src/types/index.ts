@@ -132,8 +132,8 @@ export interface Collection {
   type: CollectionType | string;
   description?: string | null;
   active: boolean;
-  startsAt?: Date;
-  endsAt?: Date;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
   designs?: Design[];
 }
 
@@ -182,7 +182,7 @@ export interface UploadTemplate {
   description?: string | null;
   requiredImageCount: number;
   allowsText: boolean;
-  textLabel?: string;
+  textLabel?: string | null;
   active: boolean;
   sortOrder: number;
   placementId: string;
