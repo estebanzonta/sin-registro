@@ -4,7 +4,6 @@
   "outputDirectory": "client/dist",
   "functions": {
     "api/[...route].ts": {
-      "runtime": "nodejs22.x",
       "includeFiles": "server/prisma/**"
     }
   },
