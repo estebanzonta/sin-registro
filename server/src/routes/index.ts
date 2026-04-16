@@ -38,6 +38,12 @@ export function registerAppRoutes(app: Express) {
   app.use(createApiRouter());
 
   app.use((_req, res) => {
-    res.status(404).json({ error: 'Not found', statusCode: 404 });
+    res.status(404).json({
+      error: 'Not found',
+      statusCode: 404,
+      path: _req.path,
+      originalUrl: _req.originalUrl,
+      method: _req.method,
+    });
   });
 }
