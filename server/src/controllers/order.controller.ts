@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { createOrderHandler, getAllOrdersHandler, getOrderHandler, getUserOrdersHandler, updateOrderStatusHandler } from '../handlers/order.handlers.js';
 
 declare global {

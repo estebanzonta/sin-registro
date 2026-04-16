@@ -55,7 +55,7 @@ export interface GarmentModel {
   category?: Category;
   name: string;
   slug: string;
-  description?: string;
+  description?: string | null;
   basePrice: number;
   active: boolean;
   frontMockupUrl?: string;
@@ -130,7 +130,7 @@ export interface Collection {
   name: string;
   slug: string;
   type: CollectionType | string;
-  description?: string;
+  description?: string | null;
   active: boolean;
   startsAt?: Date;
   endsAt?: Date;
@@ -146,7 +146,7 @@ export interface Design {
   name: string;
   slug: string;
   code: string;
-  description?: string;
+  description?: string | null;
   imageUrl: string;
   active: boolean;
   limited: boolean;
@@ -179,7 +179,7 @@ export interface UploadTemplate {
   slug: string;
   name: string;
   customizationType: UploadCustomizationType | string;
-  description?: string;
+  description?: string | null;
   requiredImageCount: number;
   allowsText: boolean;
   textLabel?: string;

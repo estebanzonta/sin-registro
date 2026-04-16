@@ -1,5 +1,5 @@
 import { prisma } from '../db.js';
-import { CatalogInitResponse } from '../types/index.js';
+import type { CatalogInitResponse } from '../types/index.js';
 
 export class CatalogService {
   private isCollectionAvailable(collection: { startsAt: Date | null; endsAt: Date | null; active: boolean } | null) {

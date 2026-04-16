@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { prisma } from '../db.js';
 import { StorageService } from '../services/storage.service.js';
@@ -16,7 +16,7 @@ function slugify(value: string) {
 function parseImageDataUrl(dataUrl: string) {
   const match = dataUrl.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
   if (!match) {
-    throw new AppError('La imagen enviada no tiene un formato válido.', 400);
+    throw new AppError('La imagen enviada no tiene un formato vÃ¡lido.', 400);
   }
 
   const extension = match[1] === 'image/jpeg' ? 'jpg' : match[1].split('/')[1];
@@ -201,7 +201,7 @@ export const deleteGarmentModel = asyncHandler(async (req: Request, res: Respons
   });
 
   if (orderItemsCount > 0) {
-    throw new AppError('No podés eliminar un modelo de prenda que ya tiene pedidos asociados.', 400);
+    throw new AppError('No podÃ©s eliminar un modelo de prenda que ya tiene pedidos asociados.', 400);
   }
 
   await prisma.$transaction(async (tx) => {
@@ -245,11 +245,11 @@ async function resolveDesignRelations(collectionId: string | null, designCategor
     : null;
 
   if (collectionId && !collection) {
-    throw new AppError('No encontramos esa colección.', 404);
+    throw new AppError('No encontramos esa colecciÃ³n.', 404);
   }
 
   if (collection && collection.type !== 'capsule') {
-    throw new AppError('Solo las colecciones cápsula pueden asignarse a diseños.', 400);
+    throw new AppError('Solo las colecciones cÃ¡psula pueden asignarse a diseÃ±os.', 400);
   }
 
   const designCategory = designCategoryId
@@ -259,7 +259,7 @@ async function resolveDesignRelations(collectionId: string | null, designCategor
     : null;
 
   if (designCategoryId && !designCategory) {
-    throw new AppError('No encontramos esa categoría de diseño.', 404);
+    throw new AppError('No encontramos esa categorÃ­a de diseÃ±o.', 404);
   }
 
   return {
@@ -275,11 +275,11 @@ export const createDesign = asyncHandler(async (req: Request, res: Response) => 
   const { collection, designCategory } = await resolveDesignRelations(collectionId, designCategoryId);
 
   if (!collection && !designCategory) {
-    throw new AppError('Los diseños fijos deben tener una categoría.', 400);
+    throw new AppError('Los diseÃ±os fijos deben tener una categorÃ­a.', 400);
   }
 
   if (collection && designCategory) {
-    throw new AppError('Los diseños cápsula no pueden asignarse a una categoría.', 400);
+    throw new AppError('Los diseÃ±os cÃ¡psula no pueden asignarse a una categorÃ­a.', 400);
   }
 
   const placementRecords = Array.isArray(placementCodes)
@@ -287,7 +287,7 @@ export const createDesign = asyncHandler(async (req: Request, res: Response) => 
     : [];
 
   if (!transferSizes.length) {
-    throw new AppError('Debés configurar al menos un tamaño de transfer.', 400);
+    throw new AppError('DebÃ©s configurar al menos un tamaÃ±o de transfer.', 400);
   }
 
   const design = await prisma.design.create({
@@ -338,11 +338,11 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
   const { collection, designCategory } = await resolveDesignRelations(collectionId, designCategoryId);
 
   if (!collection && !designCategory) {
-    throw new AppError('Los diseños fijos deben tener una categoría.', 400);
+    throw new AppError('Los diseÃ±os fijos deben tener una categorÃ­a.', 400);
   }
 
   if (collection && designCategory) {
-    throw new AppError('Los diseños cápsula no pueden asignarse a una categoría.', 400);
+    throw new AppError('Los diseÃ±os cÃ¡psula no pueden asignarse a una categorÃ­a.', 400);
   }
 
   const existingDesign = await prisma.design.findUnique({
@@ -354,7 +354,7 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
   });
 
   if (!existingDesign) {
-    throw new AppError('No encontramos ese diseño.', 404);
+    throw new AppError('No encontramos ese diseÃ±o.', 404);
   }
 
   const nextPlacementCodes = placementCodes.length
@@ -373,7 +373,7 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
   const placementRecords = await prisma.placement.findMany({ where: { code: { in: nextPlacementCodes } } });
 
   if (!nextTransferSizes.length) {
-    throw new AppError('Debés configurar al menos un tamaño de transfer.', 400);
+    throw new AppError('DebÃ©s configurar al menos un tamaÃ±o de transfer.', 400);
   }
 
   const design = await prisma.$transaction(async (tx) => {
@@ -444,7 +444,7 @@ export const deleteDesign = asyncHandler(async (req: Request, res: Response) => 
     where: { id },
   });
 
-  res.json({ message: 'Diseño eliminado.' });
+  res.json({ message: 'DiseÃ±o eliminado.' });
 });
 
 export const getBlankStock = asyncHandler(async (req: Request, res: Response) => {
@@ -644,7 +644,7 @@ async function resolveLogoPlacements(placementCodes: unknown) {
     : [];
 
   if (!logoPlacements.length) {
-    throw new AppError('Debés seleccionar al menos una ubicación permitida para el logo.', 400);
+    throw new AppError('DebÃ©s seleccionar al menos una ubicaciÃ³n permitida para el logo.', 400);
   }
 
   return logoPlacements;
@@ -656,7 +656,7 @@ async function resolveLogoColors(colorIds: unknown) {
     : [];
 
   if (!ids.length) {
-    throw new AppError('Debés seleccionar al menos un color permitido para el logo.', 400);
+    throw new AppError('DebÃ©s seleccionar al menos un color permitido para el logo.', 400);
   }
 
   const colors = await prisma.color.findMany({
@@ -667,7 +667,7 @@ async function resolveLogoColors(colorIds: unknown) {
   });
 
   if (!colors.length) {
-    throw new AppError('Necesitás al menos un color activo válido para el logo.', 400);
+    throw new AppError('NecesitÃ¡s al menos un color activo vÃ¡lido para el logo.', 400);
   }
 
   return colors;
@@ -838,7 +838,7 @@ export const createPrintArea = asyncHandler(async (req: Request, res: Response) 
   });
 
   if (!placement) {
-    throw new AppError('No encontramos esa ubicación de impresión.', 404);
+    throw new AppError('No encontramos esa ubicaciÃ³n de impresiÃ³n.', 404);
   }
 
   const printArea = await prisma.printArea.upsert({
@@ -909,7 +909,7 @@ export const createUploadTemplate = asyncHandler(async (req: Request, res: Respo
   });
 
   if (!placement) {
-    throw new AppError('No encontramos esa ubicación de impresión.', 404);
+    throw new AppError('No encontramos esa ubicaciÃ³n de impresiÃ³n.', 404);
   }
 
   const template = await prisma.uploadTemplate.create({

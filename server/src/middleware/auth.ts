@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { JWTPayload } from '../types/index.js';
+import type { JWTPayload } from '../types/index.js';
 import { AppError } from './errorHandler.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-export const verifyAuth = (req: Request, res: Response, next: NextFunction) => {
+export const verifyAuth = (req: Request, _res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -37,7 +37,7 @@ export const verifyAuth = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-export const verifyAdmin = (req: Request, res: Response, next: NextFunction) => {
+export const verifyAdmin = (req: Request, _res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
 

@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { loginHandler, meHandler, registerHandler } from '../handlers/auth.handlers.js';
 
@@ -17,7 +17,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     const result = await loginHandler(req.body);
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'No se pudo iniciar sesión.';
+    const message = err instanceof Error ? err.message : 'No se pudo iniciar sesiÃ³n.';
     throw new AppError(message, 401);
   }
 });

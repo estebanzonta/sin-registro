@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveConfigurationHandler } from '../handlers/configurator.handlers.js';
 

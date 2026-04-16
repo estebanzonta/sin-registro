@@ -1,5 +1,5 @@
 import { prisma } from '../db.js';
-import { CartItem, AddToCartRequest, UpdateCartItemRequest, CartResponse } from '../types/cart.js';
+import type { CartItem, AddToCartRequest, UpdateCartItemRequest, CartResponse } from '../types/cart.js';
 import { ConfiguratorService } from './configurator.service.js';
 import { AppError } from '../middleware/errorHandler.js';
 

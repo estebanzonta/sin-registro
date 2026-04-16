@@ -1,7 +1,7 @@
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../db.js';
-import { AuthRequest, AuthResponse, JWTPayload } from '../types/index.js';
+import type { AuthRequest, AuthResponse, JWTPayload } from '../types/index.js';
 
 class AuthService {
   private jwtSecret = process.env.JWT_SECRET || 'dev-secret-key';

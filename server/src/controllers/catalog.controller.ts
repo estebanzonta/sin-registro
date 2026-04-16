@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { getCatalogInitHandler, getDesignsHandler, getGarmentModelHandler } from '../handlers/catalog.handlers.js';
 
