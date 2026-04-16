@@ -6,7 +6,13 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "watch": "tsc -w --preserveWatchOutput",
+    "start:watch": "node --watch dist/index.js",
+    "start:stable": "node dist/index.js",
     "build": "tsc",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:seed": "tsx src/seed.ts && tsx src/create-admin.ts",
     "start": "node dist/index.js",
     "smoke": "tsx src/smoke-test.ts",
     "test": "echo \"Error: no test specified\" && exit 1"

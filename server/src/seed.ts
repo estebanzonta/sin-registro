@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { pathToFileURL } from 'url';
 import { prisma } from './db.js';
 
@@ -273,29 +274,54 @@ export async function seedDatabase(options: { disconnect?: boolean } = {}) {
     ] as const;
 
     for (const item of seededDesigns) {
-      const design = await prisma.design.upsert({
-        where: { slug: item.slug },
-        update: {
-          collectionId: item.collectionId,
-          designCategoryId: item.categorySlug ? designCategoryBySlug[item.categorySlug].id : null,
-          name: item.name,
-          code: item.code,
-          description: item.description,
-          imageUrl: item.imageUrl,
-          active: true,
-          limited: item.limited,
-        },
-        create: {
-          collectionId: item.collectionId,
-          designCategoryId: item.categorySlug ? designCategoryBySlug[item.categorySlug].id : null,
-          name: item.name,
-          slug: item.slug,
-          code: item.code,
-          description: item.description,
-          imageUrl: item.imageUrl,
-          limited: item.limited,
-        },
+      const existingByCode = await prisma.design.findUnique({
+        where: { code: item.code },
       });
+      const existingBySlug = await prisma.design.findUnique({
+        where: { slug: item.slug },
+      });
+
+      if (existingByCode && existingBySlug && existingByCode.id !== existingBySlug.id) {
+        await prisma.designPlacement.deleteMany({
+          where: { designId: existingBySlug.id },
+        });
+        await prisma.designTransferSize.deleteMany({
+          where: { designId: existingBySlug.id },
+        });
+        await prisma.design.delete({
+          where: { id: existingBySlug.id },
+        });
+      }
+
+      const targetDesign = existingByCode || existingBySlug;
+
+      const design = targetDesign
+        ? await prisma.design.update({
+            where: { id: targetDesign.id },
+            data: {
+              collectionId: item.collectionId,
+              designCategoryId: item.categorySlug ? designCategoryBySlug[item.categorySlug].id : null,
+              name: item.name,
+              slug: item.slug,
+              code: item.code,
+              description: item.description,
+              imageUrl: item.imageUrl,
+              active: true,
+              limited: item.limited,
+            },
+          })
+        : await prisma.design.create({
+            data: {
+              collectionId: item.collectionId,
+              designCategoryId: item.categorySlug ? designCategoryBySlug[item.categorySlug].id : null,
+              name: item.name,
+              slug: item.slug,
+              code: item.code,
+              description: item.description,
+              imageUrl: item.imageUrl,
+              limited: item.limited,
+            },
+          });
 
       for (const placementCode of item.placements) {
         await prisma.designPlacement.upsert({

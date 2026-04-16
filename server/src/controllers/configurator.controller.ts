@@ -1,12 +1,10 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { configuratorService } from '../services/configurator.service.js';
-import type { ConfiguratorRequest } from '../types/index.js';
+import { resolveConfigurationHandler } from '../handlers/configurator.handlers.js';
 
 export const resolveConfiguration = asyncHandler(
   async (req: Request, res: Response) => {
-    const config: ConfiguratorRequest = req.body;
-    const result = await configuratorService.resolveConfiguration(config);
+    const result = await resolveConfigurationHandler(req.body);
     res.json(result);
   }
 );

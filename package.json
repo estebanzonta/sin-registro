@@ -3,12 +3,22 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:stable": "npm run build --prefix server && concurrently \"npm run watch --prefix server\" \"npm run start:watch --prefix server\" \"npm run dev --prefix client\"",
+    "dev:stable:once": "npm run build --prefix server && concurrently \"npm run start:stable --prefix server\" \"npm run dev --prefix client\"",
     "build:client": "npm run build --prefix client",
     "build:server": "npm run build --prefix server",
     "build": "npm run build:client && npm run build:server",
-    "smoke:server": "npm run smoke --prefix server"
+    "smoke:server": "npm run smoke --prefix server",
+    "prisma:generate": "npm run prisma:generate --prefix server",
+    "db:migrate:deploy": "npm run db:migrate:deploy --prefix server",
+    "db:seed": "npm run db:seed --prefix server",
+    "postinstall": "npm run prisma:generate --prefix server"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

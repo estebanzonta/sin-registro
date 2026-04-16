@@ -9,13 +9,13 @@
 html, body, #root {
   margin: 0;
   padding: 0;
-  background-color: #000000;
+  background-color: #f8fafc;
   height: 100%;
   width: 100%;
 }
 
 body {
-  color: #ffffff;
+  color: #111827;
   font-family: var(--font-body);
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
@@ -35,4 +35,20 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   font-weight: 800;
   color: #ffffff;
+}
+
+.admin-surface {
+  color-scheme: light;
+  color: #1f2937;
+}
+
+.admin-surface input,
+.admin-surface textarea,
+.admin-surface select {
+  color: #111827;
+  background-color: #ffffff;
+}
+
+.admin-surface ::placeholder {
+  color: #6b7280;
 }

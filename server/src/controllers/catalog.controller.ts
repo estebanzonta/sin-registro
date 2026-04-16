@@ -1,19 +1,18 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { catalogService } from '../services/catalog.service.js';
+import { getCatalogInitHandler, getDesignsHandler, getGarmentModelHandler } from '../handlers/catalog.handlers.js';
 
 export const getCatalogInit = asyncHandler(async (req: Request, res: Response) => {
-  const data = await catalogService.getCatalogInit();
+  const data = await getCatalogInitHandler();
   res.json(data);
 });
 
 export const getDesigns = asyncHandler(async (req: Request, res: Response) => {
-  const designs = await catalogService.getDesigns();
+  const designs = await getDesignsHandler();
   res.json(designs);
 });
 
 export const getGarmentModel = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const model = await catalogService.getGarmentModel(id);
+  const model = await getGarmentModelHandler(req.params.id);
   res.json(model);
 });

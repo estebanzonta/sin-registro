@@ -102,10 +102,10 @@ export class CatalogService {
         ? [
             {
               id: 'fixed-catalog',
-              name: 'Catalogo fijo',
+              name: 'Catálogo fijo',
               slug: 'catalogo-fijo',
               type: 'fixed',
-              description: 'Disenos permanentes por categoria.',
+              description: 'Diseños permanentes por categoría.',
               active: true,
               designs: fixedDesigns,
             },

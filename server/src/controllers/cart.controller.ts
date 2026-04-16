@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { CartService } from '../services/cart.service.js';
-import { AddToCartRequest, UpdateCartItemRequest } from '../types/cart.js';
+import { addToCartHandler, clearCartHandler, getCartHandler, removeFromCartHandler, updateCartItemHandler } from '../handlers/cart.handlers.js';
 
 declare global {
   namespace Express {
@@ -12,12 +11,7 @@ declare global {
 
 export const getCart = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
-    }
-
-    const cart = CartService.getCart(userId);
+    const cart = await getCartHandler(req.user?.id);
     res.json(cart);
   } catch (error) {
     next(error);
@@ -26,19 +20,7 @@ export const getCart = async (req: Request, res: Response, next: NextFunction) =
 
 export const addToCart = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
-    }
-
-    const request: AddToCartRequest = req.body;
-
-    // Validation
-    if (!request.garmentModelId || !request.colorId || !request.sizeId || !request.transferSizeCode || !request.printPlacementCode || !request.customizationMode) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const cart = await CartService.addToCart(userId, request);
+    const cart = await addToCartHandler(req.user?.id, req.body);
     res.status(201).json(cart);
   } catch (error) {
     next(error);
@@ -47,15 +29,7 @@ export const addToCart = async (req: Request, res: Response, next: NextFunction)
 
 export const updateCartItem = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
-    }
-
-    const { itemId } = req.params;
-    const request: UpdateCartItemRequest = req.body;
-
-    const cart = CartService.updateCartItem(userId, itemId, request);
+    const cart = await updateCartItemHandler(req.user?.id, req.params.itemId, req.body);
     res.json(cart);
   } catch (error) {
     next(error);
@@ -64,14 +38,7 @@ export const updateCartItem = async (req: Request, res: Response, next: NextFunc
 
 export const removeFromCart = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
-    }
-
-    const { itemId } = req.params;
-
-    const cart = CartService.removeFromCart(userId, itemId);
+    const cart = await removeFromCartHandler(req.user?.id, req.params.itemId);
     res.json(cart);
   } catch (error) {
     next(error);
@@ -80,12 +47,7 @@ export const removeFromCart = async (req: Request, res: Response, next: NextFunc
 
 export const clearCart = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Necesitás iniciar sesión para continuar.' });
-    }
-
-    const cart = CartService.clearCart(userId);
+    const cart = await clearCartHandler(req.user?.id);
     res.json(cart);
   } catch (error) {
     next(error);

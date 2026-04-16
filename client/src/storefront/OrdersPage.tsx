@@ -107,7 +107,7 @@ export default function OrdersPage({
         </div>
         <div className="mx-auto max-w-5xl rounded-3xl bg-white p-8">
           <h1 className="text-3xl font-semibold">Mis pedidos</h1>
-          <p className="mt-3 text-sm text-stone-600">Necesitas iniciar sesión para ver tus pedidos.</p>
+          <p className="mt-3 text-sm text-stone-600">Necesitás iniciar sesión para ver tus pedidos.</p>
           <Link to="/auth?redirect=/orders" className="mt-6 inline-flex rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white">
             Ingresar
           </Link>

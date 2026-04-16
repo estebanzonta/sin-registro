@@ -7,7 +7,6 @@ import StorefrontTopBar from '../storefront/StorefrontTopBar';
 import { isAuthError, readFriendlyApiError } from '../lib/apiErrors';
 
 type Screen = 'category' | 'product' | 'mode' | 'selection' | 'customizer';
-type AuthMode = 'login' | 'register';
 type CustomMode = 'brand_design' | 'user_upload';
 type UploadMode = 'photo_simple' | 'photo_collage' | 'pets';
 type ProductSizeOption = { sizeId: string; size: { id: string; name: string } };
@@ -103,6 +102,57 @@ function logoOptionLabel(code: string, name?: string) {
   return code;
 }
 
+function formatImageRequirement(count: number) {
+  return `${count} imagen${count === 1 ? '' : 'es'}`;
+}
+
+function collageCellStyle(count: number, index: number): React.CSSProperties {
+  if (count <= 1) {
+    return { left: '0%', top: '0%', width: '100%', height: '100%' };
+  }
+
+  if (count === 2) {
+    return {
+      left: `${index * 50}%`,
+      top: '0%',
+      width: '50%',
+      height: '100%',
+    };
+  }
+
+  if (count === 3) {
+    if (index === 0) {
+      return { left: '0%', top: '0%', width: '100%', height: '52%' };
+    }
+
+    return {
+      left: `${(index - 1) * 50}%`,
+      top: '52%',
+      width: '50%',
+      height: '48%',
+    };
+  }
+
+  if (count === 5 && index === 0) {
+    return { left: '0%', top: '0%', width: '100%', height: '40%' };
+  }
+
+  const normalizedIndex = count === 5 ? index - 1 : index;
+  const rowSize = 2;
+  const column = normalizedIndex % rowSize;
+  const row = Math.floor(normalizedIndex / rowSize);
+  const topOffset = count === 5 ? 40 : 0;
+  const availableHeight = count === 5 ? 60 : 100;
+  const rows = count === 5 ? 2 : 2;
+
+  return {
+    left: `${column * 50}%`,
+    top: `${topOffset + row * (availableHeight / rows)}%`,
+    width: '50%',
+    height: `${availableHeight / rows}%`,
+  };
+}
+
 async function toAsset(file: File): Promise<UploadedAsset> {
   const previewUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -117,23 +167,6 @@ async function toAsset(file: File): Promise<UploadedAsset> {
     image.src = previewUrl;
   });
   return { id: `${file.name}-${Date.now()}`, name: file.name, width: dimensions.width, height: dimensions.height, previewUrl };
-}
-
-function AuthPanel({ mode, loading, error, email, password, setEmail, setPassword, onSubmit, onModeChange }: { mode: AuthMode; loading: boolean; error: string | null; email: string; password: string; setEmail: (value: string) => void; setPassword: (value: string) => void; onSubmit: () => Promise<void>; onModeChange: (mode: AuthMode) => void }) {
-  return (
-    <div className="mt-4 rounded-lg bg-gray-50 p-4">
-      <div className="mb-3 flex gap-2">
-        <button onClick={() => onModeChange('login')} className={`rounded-full px-4 py-2 text-sm ${mode === 'login' ? 'bg-gray-900 text-white' : 'border bg-white'}`}>Ingresar</button>
-        <button onClick={() => onModeChange('register')} className={`rounded-full px-4 py-2 text-sm ${mode === 'register' ? 'bg-gray-900 text-white' : 'border bg-white'}`}>Crear cuenta</button>
-      </div>
-      <div className="space-y-3">
-        <input className="w-full rounded-xl border bg-white px-4 py-3 text-sm" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="tu@email.com" />
-        <input className="w-full rounded-xl border bg-white px-4 py-3 text-sm" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" />
-      </div>
-      {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
-      <button onClick={() => void onSubmit()} disabled={loading} className="mt-3 w-full rounded-xl bg-gray-900 p-3 font-bold text-white disabled:opacity-50">{loading ? 'Procesando...' : mode === 'login' ? 'Ingresar y guardar' : 'Crear cuenta y guardar'}</button>
-    </div>
-  );
 }
 
 export default function CustomizerApp({ session, onCartCountChange, onSessionChange }: { session: AppSession | null; onCartCountChange: (count: number) => void; onSessionChange: (session: AppSession | null) => void }) {
@@ -166,11 +199,6 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   const [customText, setCustomText] = useState('');
   const [layoutPosition, setLayoutPosition] = useState({ x: 50, y: 50 });
   const [cartCount, setCartCount] = useState(0);
-  const [authMode, setAuthMode] = useState<AuthMode>('login');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authLoading, setAuthLoading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -215,7 +243,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     const matchesCategory = selectedCategoryId === 'all' || item.designCategoryId === selectedCategoryId;
     return matchesPlacement && matchesCategory;
   }), [designs, selectedView, selectedCategoryId]);
-  const selectedDesign = filteredDesigns.find((item) => item.id === selectedDesignId) || designs.find((item) => item.id === selectedDesignId) || null;
+  const selectedDesign = filteredDesigns.find((item) => item.id === selectedDesignId) || null;
   const uploadTemplates = useMemo(() => initData?.uploadTemplates || [], [initData]);
   const filteredUploadTemplates = useMemo(() => uploadTemplates.filter((item) => (item.customizationType || 'photo_simple') === selectedUploadMode), [uploadTemplates, selectedUploadMode]);
   const selectedPlacementCode = selectedView === 'back' ? 'BACK' : 'FRONT';
@@ -242,14 +270,15 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   const selectedTemplate = useMemo(() => {
     if (customMode === 'user_upload') {
       const byPlacement = uploadTemplatesForView;
+      if (!byPlacement.length) return null;
       const bySize = byPlacement.filter((item) => (item.sizeOptions || []).some((size) => size.sizeCode === selectedTransferSizeCode));
       const sizeSource = bySize.length ? bySize : byPlacement;
       const byCount = uploadedAssets.length ? sizeSource.filter((item) => item.requiredImageCount === uploadedAssets.length) : sizeSource;
       const countSource = byCount.length ? byCount : sizeSource;
       const byText = customText.trim() ? countSource.filter((item) => item.allowsText) : countSource;
-      return byText[0] || countSource[0] || filteredUploadTemplates[0] || null;
+      return byText[0] || countSource[0] || null;
     }
-    return filteredUploadTemplates.find((item) => item.id === selectedTemplateId) || filteredUploadTemplates[0] || null;
+    return null;
   }, [customMode, uploadTemplatesForView, filteredUploadTemplates, selectedTransferSizeCode, selectedTemplateId, uploadedAssets.length, customText]);
   const transferSizeOptions = useMemo(() => {
     if (customMode === 'brand_design') return selectedDesign?.transferSizes || [];
@@ -264,11 +293,28 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   }, [customMode, selectedDesign, uploadTemplatesForView, filteredUploadTemplates]);
   const selectedTransferSize = transferSizeOptions.find((item) => item.sizeCode === selectedTransferSizeCode) || transferSizeOptions[0] || null;
   const selectedColorOption = selectedProduct?.colors?.find((item) => item.colorId === selectedColorId) || null;
+  const productPrintPlacementCodes = useMemo(
+    () => Array.from(new Set((selectedProduct?.printAreas || []).map((item) => item.placement.code).filter(Boolean))),
+    [selectedProduct]
+  );
   const currentColor = selectedColorOption?.color.name.toLowerCase() || 'white';
   const currentImage = resolveMockupImage(selectedProduct, currentColor, selectedView, selectedColorOption);
   const requiredAssetCount = customMode === 'user_upload'
-    ? (selectedUploadMode === 'photo_simple' ? 1 : uploadedAssets.length || 0)
+    ? (selectedTemplate?.requiredImageCount ?? (selectedUploadMode === 'photo_simple' ? 1 : uploadCountOptions[0] || 0))
     : 0;
+  const hasRequiredUploads = customMode !== 'user_upload' || (requiredAssetCount > 0 && uploadedAssets.length === requiredAssetCount);
+  const customizerDisabledReason = !session
+    ? null
+    : saving
+      ? 'Estamos guardando tu configuración.'
+      : customMode === 'user_upload' && !selectedTemplate
+        ? `Subí ${selectedUploadMode === 'photo_simple' ? 'tu imagen' : formatImageRequirement(uploadCountOptions[0] || 1)} para continuar.`
+      : hasResolvedConfiguration && !isValid
+        ? stockValidationMessage || 'Esta combinación no está disponible.'
+        : customMode === 'user_upload' && !hasRequiredUploads
+          ? `Subí ${formatImageRequirement(requiredAssetCount)} para continuar.`
+          : null;
+  const customizerActionDisabled = Boolean(customizerDisabledReason);
   const selectedModeLabel = customMode === 'brand_design' ? 'Diseño de la marca' : 'Personalizado';
   const selectedContentLabel = customMode === 'brand_design'
     ? (selectedDesign ? `${selectedDesign.code} · ${selectedDesign.name}` : 'Elegí una estampa')
@@ -317,6 +363,12 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   }, [selectedProduct, selectedSizeId, selectedColorId]);
 
   useEffect(() => {
+    if (!productPrintPlacementCodes.length) return;
+    if (productPrintPlacementCodes.includes(selectedPlacementCode)) return;
+    setSelectedView(productPrintPlacementCodes[0] === 'BACK' ? 'back' : 'front');
+  }, [productPrintPlacementCodes, selectedPlacementCode]);
+
+  useEffect(() => {
     const firstSize = transferSizeOptions[0]?.sizeCode;
     if (firstSize && !transferSizeOptions.some((item) => item.sizeCode === selectedTransferSizeCode)) setSelectedTransferSizeCode(firstSize);
   }, [transferSizeOptions, selectedTransferSizeCode]);
@@ -362,7 +414,20 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   }, [customMode, filteredDesigns, selectedDesignId]);
 
   useEffect(() => {
-    if (!selectedProduct || !selectedSizeId || !selectedColorId || (customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && !selectedTemplate)) {
+    const hasValidTransferSize = transferSizeOptions.length > 0 && transferSizeOptions.some((item) => item.sizeCode === selectedTransferSizeCode);
+    const hasValidLogoPlacement = visibleLogoOptions.length > 0 && visibleLogoOptions.some((item) => item.code === logoPlacementCode);
+    const hasValidPrintPlacement = productPrintPlacementCodes.length > 0 && productPrintPlacementCodes.includes(selectedPlacementCode);
+
+    if (
+      !selectedProduct ||
+      !selectedSizeId ||
+      !selectedColorId ||
+      (customMode === 'brand_design' && !selectedDesignId) ||
+      (customMode === 'user_upload' && !selectedTemplate) ||
+      !hasValidPrintPlacement ||
+      !hasValidTransferSize ||
+      !hasValidLogoPlacement
+    ) {
       setPrice(0); setBasePrice(0); setTransferExtraPrice(0); setIsValid(false); setHasResolvedConfiguration(false); setStockValidationMessage(null); setConfigurationCode(''); return;
     }
     axios.post<Config>('/api/configurator/resolve', {
@@ -396,7 +461,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       setConfigurationCode('');
       setAllowedLogoPlacements([]);
     });
-  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions]);
+  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions, visibleLogoOptions, productPrintPlacementCodes, selectedPlacementCode]);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
@@ -404,42 +469,31 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     setUploadError(null);
     try {
       if (selectedUploadMode === 'photo_simple') {
-        if (files.length < 1) throw new Error('Debes subir 1 imagen.');
+        if (files.length < 1) throw new Error('Debés subir 1 imagen.');
       } else if (!uploadCountOptions.includes(files.length)) {
-        throw new Error(`Debes subir ${formatCountList(uploadCountOptions)} imagen${uploadCountOptions.some((count) => count > 1) ? 'es' : ''} para ${uploadModeLabel(selectedUploadMode).toLowerCase()}.`);
+        throw new Error(`Debés subir ${formatCountList(uploadCountOptions)} imagen${uploadCountOptions.some((count) => count > 1) ? 'es' : ''} para ${uploadModeLabel(selectedUploadMode).toLowerCase()}.`);
       }
       const nextAssets: UploadedAsset[] = [];
       const expectedCount = selectedUploadMode === 'photo_simple' ? 1 : files.length;
       for (const file of files.slice(0, expectedCount)) {
-        if (!PHOTO_RULES.allowed.includes(file.type)) throw new Error('Formato inválido');
+        if (!PHOTO_RULES.allowed.includes(file.type)) throw new Error('El archivo debe ser PNG, JPG o WEBP.');
         const asset = await toAsset(file);
-        if (asset.width < PHOTO_RULES.minWidth || asset.height < PHOTO_RULES.minHeight) throw new Error('Calidad insuficiente');
+        if (asset.width < PHOTO_RULES.minWidth || asset.height < PHOTO_RULES.minHeight) throw new Error('La imagen debe tener una calidad mínima de 1000x1000 px.');
         nextAssets.push(asset);
       }
       setUploadedAssets(nextAssets);
     } catch (error) {
       setUploadedAssets([]);
-      setUploadError(error instanceof Error ? error.message : 'No se pudo cargar la imagen');
+      setUploadError(error instanceof Error ? error.message : 'No se pudo cargar la imagen.');
     }
-  }
-
-  async function submitAuth() {
-    setAuthLoading(true); setAuthError(null);
-    try {
-      const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const response = await axios.post(endpoint, { email: authEmail, password: authPassword });
-      const nextSession = response.data as AppSession;
-      if (nextSession.user?.role !== 'customer') {
-        throw new Error('Usá el acceso admin para cuentas de administración.');
-      }
-      onSessionChange(nextSession);
-    } catch (error) {
-      setAuthError(readFriendlyApiError(error, 'No se pudo autenticar.'));
-    } finally { setAuthLoading(false); }
   }
 
   async function addToCart() {
     if (!session || !selectedProduct || !selectedSizeId || !selectedColorId) return;
+    if (customMode === 'user_upload' && (!selectedTemplate || !hasRequiredUploads)) {
+      setSaveError(`Subí ${formatImageRequirement(requiredAssetCount || 1)} para continuar.`);
+      return;
+    }
     setSaving(true); setSaveError(null);
     try {
       const response = await axios.post<CartResponse>('/api/cart/items', {
@@ -575,6 +629,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     const isActiveView = selectedView === view;
     const canEditView = customMode === 'brand_design'
       || (customMode === 'user_upload' && uploadPlacementCodes.includes(view === 'front' ? 'FRONT' : 'BACK'));
+    const uploadedAssetCount = uploadedAssets.length;
 
     return (
       <button
@@ -609,8 +664,21 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
               {customMode === 'user_upload'
                 ? uploadedAssets[0]
                   ? <>
-                      <img src={uploadedAssets[0].previewUrl} className="absolute cursor-grab object-contain" alt="Upload" onPointerDown={startDrag} style={{ ...printScaleStyle, left: `${layoutPosition.x}%`, top: `${layoutPosition.y}%`, transform: 'translate(-50%, -50%)' }} />
-                      {uploadedAssets.length > 1 ? <div className="absolute bottom-2 right-2 rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#113f27]">+{uploadedAssets.length - 1}</div> : null}
+                      {selectedUploadMode === 'photo_simple' ? (
+                        <img src={uploadedAssets[0].previewUrl} className="absolute cursor-grab object-contain" alt="Upload" onPointerDown={startDrag} style={{ ...printScaleStyle, left: `${layoutPosition.x}%`, top: `${layoutPosition.y}%`, transform: 'translate(-50%, -50%)' }} />
+                      ) : (
+                        <div className="absolute inset-0 grid overflow-hidden rounded-[10px] bg-white/85">
+                          {uploadedAssets.slice(0, 5).map((asset, index) => (
+                            <div
+                              key={asset.id}
+                              className="absolute overflow-hidden border border-white/80 bg-stone-100"
+                              style={collageCellStyle(Math.min(uploadedAssetCount, 5), index)}
+                            >
+                              <img src={asset.previewUrl} alt={asset.name} className="h-full w-full object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </>
                   : null
                 : selectedDesign
@@ -747,13 +815,13 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     return (
       <section className="relative flex min-h-screen flex-col overflow-hidden bg-black">
         <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('mode')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
-        <div className="flex flex-1 items-center justify-center px-4 pb-10 pt-28"><div className="w-full max-w-5xl rounded-lg bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.22)] lg:p-8"><h2 className="text-3xl font-extrabold text-[#111827]">{customMode === 'brand_design' ? 'Elegí el diseño de la marca' : 'Elegí tu contenido personalizado'}</h2><p className="mt-2 text-sm text-gray-500">{customMode === 'brand_design' ? 'Seleccioná la estampa que querés aplicar antes de pasar al mockup.' : 'Subí tus imágenes. El tamaño, la cara de la prenda, el color y el logo se eligen en la siguiente pantalla.'}</p>{customMode === 'brand_design' ? renderBrandDesignPicker() : <div className="mt-6 space-y-6"><div><div className="flex flex-wrap gap-4">{(['photo_simple', 'photo_collage', 'pets'] as UploadMode[]).map((mode) => <button key={mode} onClick={() => { setSelectedUploadMode(mode); setUploadedAssets([]); setUploadError(null); setCustomText(''); }} className={`px-2 py-1 text-sm font-bold uppercase transition-colors ${selectedUploadMode === mode ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`} style={{ fontFamily: 'var(--font-heading)' }}>{uploadModeLabel(mode)}</button>)}</div></div><div><h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">{selectedUploadMode === 'photo_simple' ? 'Foto' : 'Archivos'}</h3><label className="flex min-h-56 cursor-pointer items-center justify-center rounded-lg bg-gray-50 text-gray-400"><div className="text-center"><UploadCloud size={36} className="mx-auto" /><p className="mt-3 text-sm font-medium text-gray-700">{selectedUploadMode === 'photo_simple' ? 'Subí tu imagen' : 'Subí tus imágenes'}</p><p className="mt-1 text-xs text-gray-500">PNG, JPG o WEBP. Permitidas: {selectedUploadMode === 'photo_simple' ? '1' : formatCountList(uploadCountOptions)} imagen{selectedUploadMode === 'photo_simple' || uploadCountOptions.every((count) => count === 1) ? '' : 'es'}</p></div><input type="file" multiple={selectedUploadMode !== 'photo_simple'} className="hidden" onChange={handleFileUpload} /></label>{uploadError && <p className="mt-2 text-sm text-rose-600">{uploadError}</p>}{uploadedAssets.length ? <p className="mt-2 text-sm text-gray-600">{uploadedAssets.length} archivo(s) listo(s).</p> : null}{inputAllowsText ? <input className="mt-4 w-full rounded-xl bg-gray-50 p-3" value={customText} onChange={(event) => setCustomText(event.target.value)} placeholder={inputTextLabel} /> : null}</div></div>}<div className="mt-8 flex items-center justify-between gap-4 pt-6"><div className="text-sm text-gray-500">{customMode === 'brand_design' ? (selectedDesign ? `Seleccionado: ${selectedDesign.name}` : 'Elegí una estampa para continuar.') : selectedTemplate && uploadedAssets.length ? `Contenido listo: ${selectedContentLabel}` : `Subí ${selectedUploadMode === 'photo_simple' ? '1 imagen' : `${formatCountList(uploadCountOptions)} imágenes`} para continuar.`}</div><button disabled={(customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && (!uploadedAssets.length || !selectedTemplate))} onClick={() => setScreen('customizer')} className="rounded-md bg-[#111827] px-6 py-3 font-bold text-white disabled:opacity-50">Ir al mockup</button></div></div></div>
+        <div className="flex flex-1 items-center justify-center px-4 pb-10 pt-28"><div className="w-full max-w-5xl rounded-lg bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.22)] lg:p-8"><h2 className="text-3xl font-extrabold text-[#111827]">{customMode === 'brand_design' ? 'Elegí el diseño de la marca' : 'Elegí tu contenido personalizado'}</h2><p className="mt-2 text-sm text-gray-500">{customMode === 'brand_design' ? 'Seleccioná la estampa que querés aplicar antes de pasar al mockup.' : 'Subí tus imágenes. El tamaño, la cara de la prenda, el color y el logo se eligen en la siguiente pantalla.'}</p>{customMode === 'brand_design' ? renderBrandDesignPicker() : <div className="mt-6 space-y-6"><div><div className="flex flex-wrap gap-4">{(['photo_simple', 'photo_collage', 'pets'] as UploadMode[]).map((mode) => <button key={mode} onClick={() => { setSelectedUploadMode(mode); setUploadedAssets([]); setUploadError(null); setCustomText(''); }} className={`px-2 py-1 text-sm font-bold uppercase transition-colors ${selectedUploadMode === mode ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`} style={{ fontFamily: 'var(--font-heading)' }}>{uploadModeLabel(mode)}</button>)}</div></div><div><h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">{selectedUploadMode === 'photo_simple' ? 'Foto' : 'Archivos'}</h3><label className="flex min-h-56 cursor-pointer items-center justify-center rounded-lg bg-gray-50 text-gray-400"><div className="text-center"><UploadCloud size={36} className="mx-auto" /><p className="mt-3 text-sm font-medium text-gray-700">{selectedUploadMode === 'photo_simple' ? 'Subí tu imagen' : 'Subí tus imágenes'}</p><p className="mt-1 text-xs text-gray-500">PNG, JPG o WEBP. Permitidas: {selectedUploadMode === 'photo_simple' ? '1' : formatCountList(uploadCountOptions)} imagen{selectedUploadMode === 'photo_simple' || uploadCountOptions.every((count) => count === 1) ? '' : 'es'}</p></div><input type="file" multiple={selectedUploadMode !== 'photo_simple'} className="hidden" onChange={handleFileUpload} /></label>{uploadError && <p className="mt-2 text-sm text-rose-600">{uploadError}</p>}{uploadedAssets.length ? <p className="mt-2 text-sm text-gray-600">{uploadedAssets.length} archivo(s) listo(s).</p> : null}{inputAllowsText ? <input className="mt-4 w-full rounded-xl bg-gray-50 p-3" value={customText} onChange={(event) => setCustomText(event.target.value)} placeholder={inputTextLabel} /> : null}</div></div>}<div className="mt-8 flex items-center justify-between gap-4 pt-6"><div className="text-sm text-gray-500">{customMode === 'brand_design' ? (selectedDesign ? `Seleccionado: ${selectedDesign.name}` : 'Elegí una estampa para continuar.') : selectedTemplate && hasRequiredUploads ? `Contenido listo: ${selectedContentLabel}` : `Subí ${selectedUploadMode === 'photo_simple' ? '1 imagen' : `${formatCountList(uploadCountOptions)} imágenes`} para continuar.`}</div><button disabled={(customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && (!selectedTemplate || !hasRequiredUploads))} onClick={() => setScreen('customizer')} className="rounded-md bg-[#111827] px-6 py-3 font-bold text-white disabled:opacity-50">Ir al mockup</button></div></div></div>
       </section>
     );
   }
   return (
     <section className={`relative flex min-h-screen flex-col overflow-hidden lg:h-screen ${isDarkGarment ? 'bg-white' : 'bg-black'}`}>
-      <header className="absolute left-4 top-4 z-50 flex items-center gap-4 lg:left-6 lg:top-6"><button onClick={() => setScreen('selection')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><div><h1 className={`text-2xl font-bold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>Personalizar</h1><p className={`text-sm ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>{selectedProduct?.name}</p></div></header>
+      <header className="absolute left-4 top-4 z-50 flex items-center gap-4 lg:left-6 lg:top-6"><button onClick={() => setScreen('selection')} className={`flex h-11 w-11 items-center justify-center rounded-xl shadow-lg ${isDarkGarment ? 'border border-black/10 bg-white text-[#111827]' : 'bg-white/90 text-[#111827]'}`}><ChevronLeft /></button><div><h1 className={`text-2xl font-bold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>Personalizar</h1><p className={`text-sm ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>{selectedProduct?.name}</p></div></header>
       <aside className="absolute right-4 top-4 z-50 lg:right-6 lg:top-6">
         <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} cartCount={cartCount} tone="dark" />
       </aside>
@@ -764,9 +832,9 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
           {renderCustomizerMockup('back')}
         </div>
       </main>
-      <aside className="absolute right-4 top-[45%] z-50 hidden -translate-y-[80%] flex-col gap-6 lg:right-6 lg:flex">{customMode === 'brand_design' || (customMode === 'user_upload' && uploadPlacementCodes.length > 1) ? <div className="flex flex-col gap-1 rounded-3xl border border-white/30 bg-white/15 p-2 shadow-xl backdrop-blur-md"><button onClick={() => setSelectedView('front')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'front' ? 'bg-white text-[#113f27]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'back' ? 'bg-white text-[#113f27]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Espalda</button></div> : <div className="rounded-3xl border border-white/30 bg-white/15 px-4 py-6 text-center text-sm font-semibold text-white shadow-xl backdrop-blur-md">{selectedTemplate?.placement?.code === 'BACK' ? 'Espalda' : 'Frente'}</div>}</aside>
-      <div className="absolute bottom-[11.25rem] left-4 right-4 z-30 space-y-3 lg:hidden"><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md">{customMode === 'brand_design' || (customMode === 'user_upload' && uploadPlacementCodes.length > 1) ? <><p className="text-xs uppercase tracking-[0.2em] text-white/70">Vista</p><div className="mt-3 flex gap-2"><button onClick={() => setSelectedView('front')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'front' ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'back' ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>Espalda</button></div></> : <p className="text-sm font-semibold text-white">{selectedTemplate?.placement?.code === 'BACK' ? 'Vista espalda' : 'Vista frente'}</p>}</div><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Tamaño</p><div className="mt-3 flex flex-wrap gap-2">{transferSizeOptions.map((item) => <button key={item.id} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>{formatTransferSize(item.sizeCode)}</button>)}</div></div><div className="rounded-3xl border border-white/20 bg-white/12 p-4 backdrop-blur-md"><p className="text-xs uppercase tracking-[0.2em] text-white/70">Logo</p>{logoAutoNotice ? <p className="mt-2 rounded-2xl bg-white/12 px-3 py-2 text-xs leading-5 text-white">{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-full px-4 py-2 text-sm font-semibold ${logoPlacementCode === item.code ? 'bg-white text-[#113f27]' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></div>
-      <div className="relative z-30 mt-auto flex w-full max-w-[760px] flex-col overflow-hidden rounded-t-[34px] bg-white px-5 py-3 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] lg:absolute lg:bottom-0 lg:left-1/2 lg:w-[92vw] lg:max-w-[760px] lg:-translate-x-1/2 lg:flex-row lg:rounded-t-[40px] lg:px-6 lg:py-3"><div className="min-w-0 flex flex-1 flex-col justify-center pr-0 lg:pr-6"><h3 className="mb-1 text-lg font-bold text-[#111827]">Composición final</h3><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedModeLabel}</span><span className="rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700 max-w-full truncate">{selectedContentLabel}</span><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedView === 'front' ? 'Editando frente' : 'Editando espalda'}</span></div><p className="mt-2 text-xs text-gray-500">Tamaño {formatTransferSize(selectedTransferSizeCode)} · Logo {logoOptionLabel(logoPlacementCode)}</p></div><div className="mt-3 flex w-full flex-col justify-between border-t border-gray-100 pt-3 lg:mt-0 lg:w-[250px] lg:flex-none lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0"><div><p className="text-sm text-gray-500">Total estimado</p><h3 className="text-3xl font-bold text-[#111827]">{formatMoney(price)}</h3><p className="mt-1 break-all text-xs text-gray-500">{configurationCode || 'Configuración pendiente'}</p>{stockValidationMessage ? <p className={`mt-1 text-xs ${hasResolvedConfiguration && !isValid ? 'text-red-500' : 'text-amber-600'}`}>{stockValidationMessage}</p> : null}</div>{!session ? <><AuthPanel mode={authMode} loading={authLoading} error={authError} email={authEmail} password={authPassword} setEmail={setAuthEmail} setPassword={setAuthPassword} onSubmit={submitAuth} onModeChange={setAuthMode} /><Link to="/auth?redirect=/cart" className="mt-3 inline-flex justify-center rounded-xl px-4 py-3 text-sm font-semibold text-gray-700">Abrir acceso completo</Link></> : <button disabled={saving || (hasResolvedConfiguration && !isValid) || (customMode === 'user_upload' && uploadedAssets.length < requiredAssetCount)} onClick={() => void addToCart()} className="mt-3 w-full rounded-xl bg-[#111827] p-3 font-bold text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Comprar ahora'}</button>}{saveError && <p className="mt-2 text-sm text-rose-600">{saveError}</p>}</div></div>
+      <aside className="absolute right-4 top-[45%] z-50 hidden -translate-y-[80%] flex-col gap-6 lg:right-6 lg:flex">{customMode === 'brand_design' || (customMode === 'user_upload' && uploadPlacementCodes.length > 1) ? <div className={`flex flex-col gap-1 rounded-3xl p-2 shadow-xl backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/95' : 'border border-white/30 bg-white/15'}`}><button onClick={() => setSelectedView('front')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'front' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'text-[#111827]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'back' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'text-[#111827]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Espalda</button></div> : <div className={`rounded-3xl px-4 py-6 text-center text-sm font-semibold shadow-xl backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/95 text-[#111827]' : 'border border-white/30 bg-white/15 text-white'}`}>{selectedTemplate?.placement?.code === 'BACK' ? 'Espalda' : 'Frente'}</div>}</aside>
+      <div className="absolute bottom-[9.75rem] left-4 right-4 z-30 space-y-3 lg:hidden"><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}>{customMode === 'brand_design' || (customMode === 'user_upload' && uploadPlacementCodes.length > 1) ? <><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Vista</p><div className="mt-3 flex gap-2"><button onClick={() => setSelectedView('front')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'front' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'back' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>Espalda</button></div></> : <p className={`text-sm font-semibold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>{selectedTemplate?.placement?.code === 'BACK' ? 'Vista espalda' : 'Vista frente'}</p>}</div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Tamaño</p><div className="mt-3 flex flex-wrap gap-2">{transferSizeOptions.map((item) => <button key={item.id} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>{formatTransferSize(item.sizeCode)}</button>)}</div></div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Logo</p>{logoAutoNotice ? <p className={`mt-2 rounded-2xl px-3 py-2 text-xs leading-5 ${isDarkGarment ? 'bg-black/[0.05] text-[#111827]' : 'bg-white/12 text-white'}`}>{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-full px-4 py-2 text-sm font-semibold ${logoPlacementCode === item.code ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></div>
+      <div className="relative z-30 mt-auto flex w-full max-w-[760px] flex-col overflow-hidden rounded-t-[34px] bg-white px-5 py-3 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] lg:absolute lg:bottom-0 lg:left-1/2 lg:w-[92vw] lg:max-w-[760px] lg:-translate-x-1/2 lg:flex-row lg:rounded-t-[40px] lg:px-6 lg:py-3"><div className="min-w-0 flex flex-1 flex-col justify-center pr-0 lg:pr-6"><h3 className="mb-1 text-lg font-bold text-[#111827]">Composición final</h3><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedModeLabel}</span><span className="max-w-full truncate rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700">{selectedContentLabel}</span><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedView === 'front' ? 'Editando frente' : 'Editando espalda'}</span></div><p className="mt-2 text-xs text-gray-500">Tamaño {formatTransferSize(selectedTransferSizeCode)} · Logo {logoOptionLabel(logoPlacementCode)}</p></div><div className="mt-3 flex w-full flex-col justify-between border-t border-gray-100 pt-3 lg:mt-0 lg:w-[250px] lg:flex-none lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0"><div><p className="text-sm text-gray-500">Total estimado</p><h3 className="text-3xl font-bold text-[#111827]">{formatMoney(price)}</h3><p className="mt-1 break-all text-xs text-gray-500">{configurationCode || 'Configuración pendiente'}</p>{stockValidationMessage ? <p className={`mt-1 text-xs ${hasResolvedConfiguration && !isValid ? 'text-red-500' : 'text-amber-600'}`}>{stockValidationMessage}</p> : null}</div>{session ? <><button disabled={customizerActionDisabled} onClick={() => void addToCart()} className="mt-3 w-full rounded-xl bg-[#111827] p-3 font-bold text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Comprar ahora'}</button>{customizerDisabledReason ? <p className="mt-2 text-xs text-amber-700">{customizerDisabledReason}</p> : null}</> : null}{saveError && <p className="mt-2 text-sm text-rose-600">{saveError}</p>}</div></div>
     </section>
   );
 }

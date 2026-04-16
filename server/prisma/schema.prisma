@@ -14,7 +14,41 @@ model User {
   role      String   @default("customer")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  cart      Cart?
   orders    Order[]
+}
+
+model Cart {
+  id         String     @id @default(uuid())
+  userId     String     @unique
+  user       User       @relation(fields: [userId], references: [id])
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  items      CartItem[]
+}
+
+model CartItem {
+  id                        String         @id @default(uuid())
+  cartId                    String
+  cart                      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  customizationMode         String         @default("brand_design")
+  garmentModelId            String
+  colorId                   String
+  sizeId                    String
+  printPlacementCode        String
+  logoPlacementCode         String
+  designId                  String?
+  uploadTemplateId          String?
+  customDesignUrl           String?
+  customAssetUrlsJson       String?
+  transferSizeCode          String?
+  configurationCode         String         @default("")
+  unitPrice                 Float
+  quantity                  Int            @default(1)
+  layoutSnapshotJson        String?
+  configurationSnapshotJson String?
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
 }
 
 model Category {

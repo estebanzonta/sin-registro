@@ -27,18 +27,15 @@ class AuthService {
   async register(data: AuthRequest): Promise<AuthResponse> {
     const { email, password } = data;
 
-    // Validate email
     if (!this.validateEmail(email)) {
       throw new Error('Ingresá un email válido');
     }
 
-    // Validate password
     const passwordValidation = this.validatePassword(password);
     if (!passwordValidation.valid) {
       throw new Error(passwordValidation.errors.join(', '));
     }
 
-    // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -47,10 +44,8 @@ class AuthService {
       throw new Error('Ya existe una cuenta con ese email');
     }
 
-    // Hash password
     const hashedPassword = await bcryptjs.hash(password, 10);
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         email,
@@ -59,7 +54,6 @@ class AuthService {
       },
     });
 
-    // Generate JWT
     const token = this.generateToken(user.id, user.email, user.role);
 
     return {
@@ -76,7 +70,6 @@ class AuthService {
   async login(data: AuthRequest): Promise<AuthResponse> {
     const { email, password } = data;
 
-    // Find user
     const user = await prisma.user.findUnique({
       where: { email },
     });
@@ -85,14 +78,12 @@ class AuthService {
       throw new Error('Email o contraseña incorrectos');
     }
 
-    // Compare passwords
     const isPasswordValid = await bcryptjs.compare(password, user.password);
 
     if (!isPasswordValid) {
       throw new Error('Email o contraseña incorrectos');
     }
 
-    // Generate JWT
     const token = this.generateToken(user.id, user.email, user.role);
 
     return {
@@ -124,7 +115,7 @@ class AuthService {
     try {
       const decoded = jwt.verify(token, this.jwtSecret) as JWTPayload;
       return decoded;
-    } catch (err) {
+    } catch {
       throw new Error('Tu sesión venció. Ingresá nuevamente.');
     }
   }

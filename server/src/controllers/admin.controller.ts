@@ -1,12 +1,8 @@
 import { Request, Response } from 'express';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { prisma } from '../db.js';
-
-const controllerDir = path.dirname(fileURLToPath(import.meta.url));
-const uploadsRoot = path.resolve(controllerDir, '../../../client/public/uploads');
+import { StorageService } from '../services/storage.service.js';
+import { parseBlankStockPayload, parseBrandLogoPayload, parseCollectionPayload, parseDesignPayload, parseGarmentModelPayload, parseNamedEntityPayload, parsePrintAreaPayload, parseUploadAssetRequest, parseUploadTemplatePayload, parseUserRolePayload } from '../validation/admin-validation.js';
 
 function slugify(value: string) {
   return value
@@ -20,12 +16,13 @@ function slugify(value: string) {
 function parseImageDataUrl(dataUrl: string) {
   const match = dataUrl.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
   if (!match) {
-    throw new AppError('Invalid image payload', 400);
+    throw new AppError('La imagen enviada no tiene un formato válido.', 400);
   }
 
   const extension = match[1] === 'image/jpeg' ? 'jpg' : match[1].split('/')[1];
 
   return {
+    contentType: match[1],
     extension,
     buffer: Buffer.from(match[2], 'base64'),
   };
@@ -44,19 +41,7 @@ export const getGarmentModels = asyncHandler(async (req: Request, res: Response)
 });
 
 export const createGarmentModel = asyncHandler(async (req: Request, res: Response) => {
-  const { categoryId, name, slug, description, basePrice, frontMockupUrl, backMockupUrl, sizeIds, colorIds, colorMockups } = req.body;
-
-  if (!name || !slug || !categoryId || basePrice === undefined) {
-    throw new AppError('Missing required fields', 400);
-  }
-
-  if (!Array.isArray(sizeIds) || sizeIds.length === 0) {
-    throw new AppError('At least one size is required', 400);
-  }
-
-  if (!Array.isArray(colorIds) || colorIds.length === 0) {
-    throw new AppError('At least one color is required', 400);
-  }
+  const { categoryId, name, slug, description, basePrice, frontMockupUrl, backMockupUrl, sizeIds, colorIds, colorMockups } = parseGarmentModelPayload(req.body, 'create');
 
   const model = await prisma.$transaction(async (tx) => {
     const createdModel = await tx.garmentModel.create({
@@ -120,7 +105,7 @@ export const createGarmentModel = asyncHandler(async (req: Request, res: Respons
 
 export const updateGarmentModel = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, slug, description, basePrice, frontMockupUrl, backMockupUrl, active, sizeIds, colorIds, colorMockups } = req.body;
+  const { name, slug, description, basePrice, frontMockupUrl, backMockupUrl, active, sizeIds, colorIds, colorMockups } = parseGarmentModelPayload(req.body, 'update');
 
   const model = await prisma.$transaction(async (tx) => {
     await tx.garmentModel.update({
@@ -216,7 +201,7 @@ export const deleteGarmentModel = asyncHandler(async (req: Request, res: Respons
   });
 
   if (orderItemsCount > 0) {
-    throw new AppError('Cannot delete a garment model that is already used in orders', 400);
+    throw new AppError('No podés eliminar un modelo de prenda que ya tiene pedidos asociados.', 400);
   }
 
   await prisma.$transaction(async (tx) => {
@@ -237,7 +222,7 @@ export const deleteGarmentModel = asyncHandler(async (req: Request, res: Respons
     });
   });
 
-  res.json({ message: 'Garment model deleted' });
+  res.json({ message: 'Modelo de prenda eliminado.' });
 });
 
 export const getDesigns = asyncHandler(async (req: Request, res: Response) => {
@@ -260,11 +245,11 @@ async function resolveDesignRelations(collectionId: string | null, designCategor
     : null;
 
   if (collectionId && !collection) {
-    throw new AppError('Collection not found', 404);
+    throw new AppError('No encontramos esa colección.', 404);
   }
 
   if (collection && collection.type !== 'capsule') {
-    throw new AppError('Only capsule collections can be assigned to designs', 400);
+    throw new AppError('Solo las colecciones cápsula pueden asignarse a diseños.', 400);
   }
 
   const designCategory = designCategoryId
@@ -274,7 +259,7 @@ async function resolveDesignRelations(collectionId: string | null, designCategor
     : null;
 
   if (designCategoryId && !designCategory) {
-    throw new AppError('Design category not found', 404);
+    throw new AppError('No encontramos esa categoría de diseño.', 404);
   }
 
   return {
@@ -283,51 +268,18 @@ async function resolveDesignRelations(collectionId: string | null, designCategor
   };
 }
 
-function normalizeDesignPayload(body: any) {
-  return {
-    collectionId: typeof body.collectionId === 'string' && body.collectionId.trim() ? body.collectionId : null,
-    designCategoryId: typeof body.designCategoryId === 'string' && body.designCategoryId.trim() ? body.designCategoryId : null,
-    name: typeof body.name === 'string' ? body.name.trim() : '',
-    slug: typeof body.slug === 'string' ? body.slug.trim() : '',
-    code: typeof body.code === 'string' ? body.code.trim().toUpperCase() : '',
-    description: typeof body.description === 'string' && body.description.trim() ? body.description.trim() : null,
-    imageUrl: typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '',
-    active: body.active,
-    placementCodes: (Array.isArray(body.placementCodes)
-      ? Array.from(
-          new Set(body.placementCodes.filter((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim())))
-        )
-      : []) as string[],
-    transferSizes: Array.isArray(body.transferSizes)
-      ? body.transferSizes
-          .filter((item: any) => item && item.sizeCode)
-          .map((item: any) => ({
-            sizeCode: String(item.sizeCode).trim(),
-            widthCm: Number(item.widthCm),
-            heightCm: Number(item.heightCm),
-            stock: Number(item.stock ?? 0),
-            extraPrice: Number(item.extraPrice ?? 0),
-          }))
-      : [],
-  };
-}
-
 export const createDesign = asyncHandler(async (req: Request, res: Response) => {
   const { collectionId, designCategoryId, name, slug, code, description, imageUrl, placementCodes, transferSizes } =
-    normalizeDesignPayload(req.body);
-
-  if (!name || !slug || !code || !imageUrl) {
-    throw new AppError('Missing required fields', 400);
-  }
+    parseDesignPayload(req.body);
 
   const { collection, designCategory } = await resolveDesignRelations(collectionId, designCategoryId);
 
   if (!collection && !designCategory) {
-    throw new AppError('Fixed designs require a category', 400);
+    throw new AppError('Los diseños fijos deben tener una categoría.', 400);
   }
 
   if (collection && designCategory) {
-    throw new AppError('Capsule designs cannot be assigned to a category', 400);
+    throw new AppError('Los diseños cápsula no pueden asignarse a una categoría.', 400);
   }
 
   const placementRecords = Array.isArray(placementCodes)
@@ -335,7 +287,7 @@ export const createDesign = asyncHandler(async (req: Request, res: Response) => 
     : [];
 
   if (!transferSizes.length) {
-    throw new AppError('At least one transfer size is required', 400);
+    throw new AppError('Debés configurar al menos un tamaño de transfer.', 400);
   }
 
   const design = await prisma.design.create({
@@ -381,20 +333,16 @@ export const createDesign = asyncHandler(async (req: Request, res: Response) => 
 export const updateDesign = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { collectionId, designCategoryId, name, slug, code, description, imageUrl, active, placementCodes, transferSizes } =
-    normalizeDesignPayload(req.body);
-
-  if (!name || !slug || !code || !imageUrl) {
-    throw new AppError('Missing required fields', 400);
-  }
+    parseDesignPayload(req.body);
 
   const { collection, designCategory } = await resolveDesignRelations(collectionId, designCategoryId);
 
   if (!collection && !designCategory) {
-    throw new AppError('Fixed designs require a category', 400);
+    throw new AppError('Los diseños fijos deben tener una categoría.', 400);
   }
 
   if (collection && designCategory) {
-    throw new AppError('Capsule designs cannot be assigned to a category', 400);
+    throw new AppError('Los diseños cápsula no pueden asignarse a una categoría.', 400);
   }
 
   const existingDesign = await prisma.design.findUnique({
@@ -406,7 +354,7 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
   });
 
   if (!existingDesign) {
-    throw new AppError('Design not found', 404);
+    throw new AppError('No encontramos ese diseño.', 404);
   }
 
   const nextPlacementCodes = placementCodes.length
@@ -425,7 +373,7 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
   const placementRecords = await prisma.placement.findMany({ where: { code: { in: nextPlacementCodes } } });
 
   if (!nextTransferSizes.length) {
-    throw new AppError('At least one transfer size is required', 400);
+    throw new AppError('Debés configurar al menos un tamaño de transfer.', 400);
   }
 
   const design = await prisma.$transaction(async (tx) => {
@@ -496,7 +444,7 @@ export const deleteDesign = asyncHandler(async (req: Request, res: Response) => 
     where: { id },
   });
 
-  res.json({ message: 'Design deleted' });
+  res.json({ message: 'Diseño eliminado.' });
 });
 
 export const getBlankStock = asyncHandler(async (req: Request, res: Response) => {
@@ -528,22 +476,14 @@ export const getUsers = asyncHandler(async (req: Request, res: Response) => {
 
 export const updateUserRole = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { role } = req.body;
-
-  if (role !== 'admin' && role !== 'customer') {
-    throw new AppError('Role must be admin or customer', 400);
-  }
-
-  if (req.user?.id === id && role !== 'admin') {
-    throw new AppError('You cannot remove your own admin role', 400);
-  }
+  const { role } = parseUserRolePayload(req.body, req.user?.id, id);
 
   const user = await prisma.user.findUnique({
     where: { id },
   });
 
   if (!user) {
-    throw new AppError('User not found', 404);
+    throw new AppError('No encontramos ese usuario.', 404);
   }
 
   const updatedUser = await prisma.user.update({
@@ -568,15 +508,11 @@ export const updateUserRole = asyncHandler(async (req: Request, res: Response) =
 
 export const updateBlankStock = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { quantity } = req.body;
-
-  if (quantity === undefined) {
-    throw new AppError('Quantity is required', 400);
-  }
+  const { quantity } = parseBlankStockPayload(req.body);
 
   const record = await prisma.blankStock.update({
     where: { id },
-    data: { quantity: Number(quantity) },
+    data: { quantity },
   });
 
   res.json(record);
@@ -590,11 +526,7 @@ export const getCollections = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const createGarmentCategory = asyncHandler(async (req: Request, res: Response) => {
-  const { name, slug } = req.body;
-
-  if (!name) {
-    throw new AppError('Name is required', 400);
-  }
+  const { name, slug } = parseNamedEntityPayload(req.body);
 
   const category = await prisma.category.create({
     data: {
@@ -607,11 +539,7 @@ export const createGarmentCategory = asyncHandler(async (req: Request, res: Resp
 });
 
 export const createSize = asyncHandler(async (req: Request, res: Response) => {
-  const { name } = req.body;
-
-  if (!name) {
-    throw new AppError('Name is required', 400);
-  }
+  const { name } = parseNamedEntityPayload(req.body);
 
   const size = await prisma.size.create({
     data: {
@@ -623,11 +551,7 @@ export const createSize = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const createColor = asyncHandler(async (req: Request, res: Response) => {
-  const { name, hex } = req.body;
-
-  if (!name || !hex) {
-    throw new AppError('Name and hex are required', 400);
-  }
+  const { name, hex } = parseNamedEntityPayload(req.body, false, true);
 
   const color = await prisma.color.create({
     data: {
@@ -640,11 +564,7 @@ export const createColor = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const createDesignCategory = asyncHandler(async (req: Request, res: Response) => {
-  const { name, slug, code } = req.body;
-
-  if (!name || !code) {
-    throw new AppError('Name and code are required', 400);
-  }
+  const { name, slug, code } = parseNamedEntityPayload(req.body, true);
 
   const category = await prisma.designCategory.create({
     data: {
@@ -658,15 +578,7 @@ export const createDesignCategory = asyncHandler(async (req: Request, res: Respo
 });
 
 export const createCollection = asyncHandler(async (req: Request, res: Response) => {
-  const { name, slug, type, description, startsAt, endsAt } = req.body;
-
-  if (!name || !type) {
-    throw new AppError('Missing required fields', 400);
-  }
-
-  if (type !== 'capsule') {
-    throw new AppError('Only capsule collections are supported', 400);
-  }
+  const { name, slug, type, description, startsAt, endsAt } = parseCollectionPayload(req.body);
 
   const collection = await prisma.collection.create({
     data: {
@@ -674,8 +586,8 @@ export const createCollection = asyncHandler(async (req: Request, res: Response)
       slug: slug || slugify(name),
       type,
       description,
-      startsAt: startsAt ? new Date(startsAt) : undefined,
-      endsAt: endsAt ? new Date(endsAt) : undefined,
+      startsAt,
+      endsAt,
     },
   });
 
@@ -683,29 +595,16 @@ export const createCollection = asyncHandler(async (req: Request, res: Response)
 });
 
 export const uploadAsset = asyncHandler(async (req: Request, res: Response) => {
-  const { dataUrl, filename, folder } = req.body;
+  const { dataUrl, filename, folder } = parseUploadAssetRequest(req.body);
 
-  if (!dataUrl || !folder) {
-    throw new AppError('dataUrl and folder are required', 400);
-  }
-
-  const safeFolder = String(folder).replace(/[^a-z0-9-_]/gi, '').toLowerCase();
-  if (!safeFolder) {
-    throw new AppError('Invalid folder', 400);
-  }
-
-  const { extension, buffer } = parseImageDataUrl(String(dataUrl));
+  const { extension, buffer, contentType } = parseImageDataUrl(String(dataUrl));
   const baseName = slugify(String(filename || `asset-${Date.now()}`)) || `asset-${Date.now()}`;
   const finalName = `${baseName}.${extension}`;
-  const targetDir = path.join(uploadsRoot, safeFolder);
-  const targetPath = path.join(targetDir, finalName);
-
-  await fs.mkdir(targetDir, { recursive: true });
-  await fs.writeFile(targetPath, buffer);
+  const result = await StorageService.uploadAsset(folder, finalName, buffer, contentType);
 
   res.status(201).json({
-    url: `/uploads/${safeFolder}/${finalName}`,
-    filename: finalName,
+    url: result.url,
+    filename: result.filename,
   });
 });
 
@@ -745,7 +644,7 @@ async function resolveLogoPlacements(placementCodes: unknown) {
     : [];
 
   if (!logoPlacements.length) {
-    throw new AppError('At least one logo placement is required', 400);
+    throw new AppError('Debés seleccionar al menos una ubicación permitida para el logo.', 400);
   }
 
   return logoPlacements;
@@ -757,7 +656,7 @@ async function resolveLogoColors(colorIds: unknown) {
     : [];
 
   if (!ids.length) {
-    throw new AppError('At least one allowed color is required', 400);
+    throw new AppError('Debés seleccionar al menos un color permitido para el logo.', 400);
   }
 
   const colors = await prisma.color.findMany({
@@ -768,32 +667,14 @@ async function resolveLogoColors(colorIds: unknown) {
   });
 
   if (!colors.length) {
-    throw new AppError('At least one valid active color is required', 400);
+    throw new AppError('Necesitás al menos un color activo válido para el logo.', 400);
   }
 
   return colors;
 }
 
-function normalizeLogoPayload(body: any) {
-  return {
-    name: typeof body.name === 'string' ? body.name.trim() : '',
-    slug: typeof body.slug === 'string' ? body.slug.trim() : '',
-    code: typeof body.code === 'string' ? body.code.trim().toUpperCase() : '',
-    imageUrl: typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '',
-    widthCm: Number(body.widthCm),
-    heightCm: Number(body.heightCm),
-    active: body.active === undefined ? true : Boolean(body.active),
-    placementCodes: Array.isArray(body.placementCodes) ? body.placementCodes : [],
-    colorIds: Array.isArray(body.colorIds) ? body.colorIds : [],
-  };
-}
-
 export const createBrandLogo = asyncHandler(async (req: Request, res: Response) => {
-  const { name, slug, code, imageUrl, widthCm, heightCm, active, placementCodes, colorIds } = normalizeLogoPayload(req.body);
-
-  if (!name || !code || !imageUrl || widthCm === undefined || heightCm === undefined) {
-    throw new AppError('Missing required fields', 400);
-  }
+  const { name, slug, code, imageUrl, widthCm, heightCm, active, placementCodes, colorIds } = parseBrandLogoPayload(req.body);
 
   const logoPlacements = await resolveLogoPlacements(placementCodes);
   const logoColors = await resolveLogoColors(colorIds);
@@ -833,11 +714,7 @@ export const createBrandLogo = asyncHandler(async (req: Request, res: Response) 
 
 export const updateBrandLogo = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, slug, code, imageUrl, widthCm, heightCm, active, placementCodes, colorIds } = normalizeLogoPayload(req.body);
-
-  if (!name || !code || !imageUrl || Number.isNaN(widthCm) || Number.isNaN(heightCm)) {
-    throw new AppError('Missing required fields', 400);
-  }
+  const { name, slug, code, imageUrl, widthCm, heightCm, active, placementCodes, colorIds } = parseBrandLogoPayload(req.body);
 
   const logoPlacements = await resolveLogoPlacements(placementCodes);
   const logoColors = await resolveLogoColors(colorIds);
@@ -904,7 +781,7 @@ export const deleteBrandLogo = asyncHandler(async (req: Request, res: Response) 
     });
   });
 
-  res.json({ message: 'Brand logo deleted' });
+  res.json({ message: 'Logo eliminado.' });
 });
 
 export const bootstrapPlacements = asyncHandler(async (req: Request, res: Response) => {
@@ -951,11 +828,7 @@ export const getPrintAreas = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const createPrintArea = asyncHandler(async (req: Request, res: Response) => {
-  const { garmentModelId, placementCode, xPct, yPct, widthPct, heightPct, active } = req.body;
-
-  if (!garmentModelId || !placementCode || xPct === undefined || yPct === undefined || widthPct === undefined || heightPct === undefined) {
-    throw new AppError('Missing required fields', 400);
-  }
+  const { garmentModelId, placementCode, xPct, yPct, widthPct, heightPct, active } = parsePrintAreaPayload(req.body);
 
   const placement = await prisma.placement.findFirst({
     where: {
@@ -965,7 +838,7 @@ export const createPrintArea = asyncHandler(async (req: Request, res: Response) 
   });
 
   if (!placement) {
-    throw new AppError('Print placement not found', 404);
+    throw new AppError('No encontramos esa ubicación de impresión.', 404);
   }
 
   const printArea = await prisma.printArea.upsert({
@@ -976,20 +849,20 @@ export const createPrintArea = asyncHandler(async (req: Request, res: Response) 
       },
     },
     update: {
-      xPct: Number(xPct),
-      yPct: Number(yPct),
-      widthPct: Number(widthPct),
-      heightPct: Number(heightPct),
-      active: active === undefined ? true : Boolean(active),
+      xPct,
+      yPct,
+      widthPct,
+      heightPct,
+      active,
     },
     create: {
       garmentModelId,
       placementId: placement.id,
-      xPct: Number(xPct),
-      yPct: Number(yPct),
-      widthPct: Number(widthPct),
-      heightPct: Number(heightPct),
-      active: active === undefined ? true : Boolean(active),
+      xPct,
+      yPct,
+      widthPct,
+      heightPct,
+      active,
     },
     include: {
       garmentModel: true,
@@ -1024,12 +897,9 @@ export const createUploadTemplate = asyncHandler(async (req: Request, res: Respo
     textLabel,
     placementCode,
     previewImageUrl,
+    sortOrder,
     sizeOptions,
-  } = req.body;
-
-  if (!code || !name || !customizationType || !placementCode || requiredImageCount === undefined) {
-    throw new AppError('Missing required fields', 400);
-  }
+  } = parseUploadTemplatePayload(req.body);
 
   const placement = await prisma.placement.findFirst({
     where: {
@@ -1039,7 +909,7 @@ export const createUploadTemplate = asyncHandler(async (req: Request, res: Respo
   });
 
   if (!placement) {
-    throw new AppError('Print placement not found', 404);
+    throw new AppError('No encontramos esa ubicación de impresión.', 404);
   }
 
   const template = await prisma.uploadTemplate.create({
@@ -1049,19 +919,20 @@ export const createUploadTemplate = asyncHandler(async (req: Request, res: Respo
       name,
       customizationType,
       description,
-      requiredImageCount: Number(requiredImageCount),
+      requiredImageCount,
       allowsText: Boolean(allowsText),
       textLabel,
+      sortOrder,
       placement: { connect: { id: placement.id } },
-      previewImageUrl,
+      previewImageUrl: previewImageUrl || null,
       sizeOptions: Array.isArray(sizeOptions)
         ? {
-            create: sizeOptions.map((item: any) => ({
-              sizeCode: item.sizeCode,
-              widthCm: Number(item.widthCm),
-              heightCm: Number(item.heightCm),
-              extraPrice: Number(item.extraPrice ?? 0),
-            })),
+          create: sizeOptions.map((item: any) => ({
+            sizeCode: item.sizeCode,
+            widthCm: item.widthCm,
+            heightCm: item.heightCm,
+            extraPrice: item.extraPrice,
+          })),
           }
         : undefined,
     },
@@ -1073,3 +944,4 @@ export const createUploadTemplate = asyncHandler(async (req: Request, res: Respo
 
   res.status(201).json(template);
 });
+

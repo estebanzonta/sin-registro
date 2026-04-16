@@ -13,11 +13,7 @@ declare global {
   }
 }
 
-export const verifyAuth = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const verifyAuth = (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -25,7 +21,7 @@ export const verifyAuth = (
       return next(new AppError('Necesitás iniciar sesión para continuar.', 401));
     }
 
-    const token = authHeader.substring(7); // Remove "Bearer "
+    const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
 
     req.user = decoded;
@@ -41,11 +37,7 @@ export const verifyAuth = (
   }
 };
 
-export const verifyAdmin = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const verifyAdmin = (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
 

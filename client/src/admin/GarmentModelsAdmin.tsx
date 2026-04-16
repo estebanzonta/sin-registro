@@ -253,7 +253,7 @@ export default function GarmentModelsAdmin() {
       <div className="mb-8 grid gap-6 xl:grid-cols-3">
         <form onSubmit={handleCreateCategory} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-800">
-            <Plus size={20} className="text-indigo-500" /> Nueva categoria
+            <Plus size={20} className="text-indigo-500" /> Nueva categoría
           </h2>
           <input
             className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3"
@@ -263,7 +263,7 @@ export default function GarmentModelsAdmin() {
             required
           />
           <button className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 font-medium text-white" type="submit">
-            Guardar categoria
+            Guardar categoría
           </button>
         </form>
 
@@ -342,13 +342,13 @@ export default function GarmentModelsAdmin() {
             onChange={(event) => setSelectedCategoryId(event.target.value)}
             required
           >
-            <option value="" disabled>Selecciona una categoria</option>
+            <option value="" disabled>Selecciona una categoría</option>
             {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
 
           <textarea
             className="md:col-span-2 min-h-24 rounded-xl border border-gray-200 bg-gray-50 p-3"
-            placeholder="Descripcion"
+            placeholder="Descripción"
             value={newModel.description}
             onChange={(event) => setNewModel((current) => ({ ...current, description: event.target.value }))}
           />
@@ -498,7 +498,7 @@ export default function GarmentModelsAdmin() {
           <div className="flex gap-3">
             {editingModelId ? (
               <button className="rounded-xl border border-gray-200 bg-white px-6 py-3 font-medium text-gray-700" type="button" onClick={resetModelForm}>
-                Cancelar edicion
+                Cancelar edición
               </button>
             ) : null}
             <button className="rounded-xl bg-blue-600 px-6 py-3 font-medium text-white" type="submit">
@@ -517,7 +517,7 @@ export default function GarmentModelsAdmin() {
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-lg font-bold text-gray-900">{model.name}</h3>
-                <p className="mt-1 text-sm text-gray-500">{model.description || 'Sin descripcion'}</p>
+                <p className="mt-1 text-sm text-gray-500">{model.description || 'Sin descripción'}</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
                   <span className="rounded-full bg-gray-100 px-3 py-1">{model.category?.name}</span>
                   <span className="rounded-full bg-gray-100 px-3 py-1">{model.slug}</span>

@@ -18,6 +18,8 @@ export interface CartItem {
   quantity: number;
   layoutSnapshotJson?: string;
   configurationSnapshotJson?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface Cart {

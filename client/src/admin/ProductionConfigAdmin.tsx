@@ -310,8 +310,8 @@ export default function ProductionConfigAdmin() {
   return (
     <div className="animate-in fade-in duration-500">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Produccion</h1>
-        <p className="mt-1 text-gray-500">Configura placements, areas imprimibles y logos disponibles para produccion.</p>
+        <h1 className="text-2xl font-bold text-gray-900">Producción</h1>
+        <p className="mt-1 text-gray-500">Configura placements, áreas imprimibles y logos disponibles para producción.</p>
       </div>
 
       <div className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -322,12 +322,12 @@ export default function ProductionConfigAdmin() {
             </h2>
             <p className="mt-1 text-sm text-gray-500">
               {printPlacements.length
-                ? `Hay ${printPlacements.length} placements de impresion disponibles.`
-                : 'No hay placements de impresion cargados todavia.'}
+                ? `Hay ${printPlacements.length} placements de impresión disponibles.`
+                : 'No hay placements de impresión cargados todavía.'}
             </p>
           </div>
           <button onClick={() => void bootstrapPlacements()} disabled={bootstrapping} className="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white disabled:opacity-50">
-            {bootstrapping ? 'Inicializando...' : 'Inicializar placements estandar'}
+            {bootstrapping ? 'Inicializando...' : 'Inicializar placements estándar'}
           </button>
         </div>
 
@@ -335,7 +335,7 @@ export default function ProductionConfigAdmin() {
           <div className="mt-4 flex flex-wrap gap-2">
             {placements.map((placement) => (
               <span key={placement.id} className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                {placement.code} Â· {placement.name}
+                {placement.code} · {placement.name}
               </span>
             ))}
           </div>
@@ -347,7 +347,7 @@ export default function ProductionConfigAdmin() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-gray-800">Logos de marca</h2>
-              <p className="mt-1 text-sm text-gray-500">Carga logos con medidas fisicas, ubicaciones y colores permitidos.</p>
+              <p className="mt-1 text-sm text-gray-500">Carga logos con medidas físicas, ubicaciones y colores permitidos.</p>
             </div>
             {editingLogoId ? (
               <button type="button" onClick={resetLogoForm} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
@@ -366,7 +366,7 @@ export default function ProductionConfigAdmin() {
             />
             <input
               className="rounded-xl border border-gray-200 bg-gray-50 p-3 uppercase"
-              placeholder="Codigo"
+              placeholder="Código"
               value={logoForm.code}
               onChange={(event) => setLogoForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
               required
@@ -508,7 +508,7 @@ export default function ProductionConfigAdmin() {
                 </div>
               </article>
             ))}
-            {!brandLogos.length ? <p className="text-sm text-gray-500">Todavia no hay logos cargados.</p> : null}
+            {!brandLogos.length ? <p className="text-sm text-gray-500">Todavía no hay logos cargados.</p> : null}
           </div>
         </div>
       </div>
@@ -525,7 +525,7 @@ export default function ProductionConfigAdmin() {
 
             {!printPlacements.length ? (
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Primero inicializa los placements estandar para poder configurar areas de impresion.
+                Primero inicializa los placements estándar para poder configurar áreas de impresión.
               </p>
             ) : (
               <div className="grid gap-4 xl:grid-cols-2">
@@ -558,7 +558,7 @@ export default function ProductionConfigAdmin() {
 
                       <div className="mt-4 flex justify-end">
                         <button type="button" onClick={() => void savePrintArea(model.id, placement.code)} disabled={savingKey === key} className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-                          {savingKey === key ? 'Guardando...' : 'Guardar area'}
+                          {savingKey === key ? 'Guardando...' : 'Guardar área'}
                         </button>
                       </div>
                     </div>
@@ -572,3 +572,4 @@ export default function ProductionConfigAdmin() {
     </div>
   );
 }
+

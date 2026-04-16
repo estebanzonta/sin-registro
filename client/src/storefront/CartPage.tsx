@@ -130,7 +130,7 @@ export default function CartPage({
         setError(readFriendlyApiError(requestError, 'No pudimos cargar el carrito.'));
       })
       .finally(() => setLoading(false));
-  }, [session, onCartCountChange]);
+  }, [session, onCartCountChange, onSessionChange]);
 
   const garmentMap = useMemo(
     () => new Map((catalog?.categories || []).flatMap((category) => (category.garmentModels || []).map((item) => [item.id, item]))),
@@ -141,6 +141,11 @@ export default function CartPage({
     [catalog]
   );
   const templateMap = useMemo(() => new Map((catalog?.uploadTemplates || []).map((item) => [item.id, item.name])), [catalog]);
+  const submitDisabledReason = !customerName.trim()
+    ? 'Completá el nombre para confirmar el pedido.'
+    : !customerEmail.trim()
+      ? 'Completá el email para confirmar el pedido.'
+      : null;
 
   async function removeItem(itemId: string) {
     if (!cart) return;
@@ -155,28 +160,10 @@ export default function CartPage({
     setSubmitting(true);
     setError(null);
     try {
-      const orderPayload = {
+      const response = await axios.post<OrderResponse>('/api/orders', {
         customerName: customerName.trim(),
         customerEmail: customerEmail.trim(),
-        items: cart.items.map((item) => ({
-          customizationMode: item.customizationMode,
-          garmentModelId: item.garmentModelId,
-          colorId: item.colorId,
-          sizeId: item.sizeId,
-          printPlacementCode: item.printPlacementCode,
-          logoPlacementCode: item.logoPlacementCode,
-          transferSizeCode: item.transferSizeCode,
-          designId: item.designId,
-          uploadTemplateId: item.uploadTemplateId,
-          quantity: item.quantity,
-          customAssetUrls: parseJson(item.customAssetUrlsJson),
-          layoutSnapshot: parseJson(item.layoutSnapshotJson),
-          configurationSnapshotJson: item.configurationSnapshotJson,
-        })),
-      };
-
-      const response = await axios.post<OrderResponse>('/api/orders', orderPayload);
-      await axios.delete('/api/cart');
+      });
       setSuccess(response.data);
       setCart({ items: [], totalItems: 0, totalPrice: 0 });
       onCartCountChange(0);
@@ -185,7 +172,7 @@ export default function CartPage({
       if (isAuthError(submitError)) {
         onSessionChange(null);
       }
-      setError(readFriendlyApiError(submitError, 'No se pudo crear la orden.'));
+      setError(readFriendlyApiError(submitError, 'No se pudo crear el pedido.'));
     } finally {
       setSubmitting(false);
     }
@@ -199,7 +186,7 @@ export default function CartPage({
         </div>
         <div className="mx-auto max-w-4xl rounded-3xl bg-white p-8">
           <h1 className="text-3xl font-semibold">Carrito</h1>
-          <p className="mt-3 text-sm text-stone-600">Necesitas iniciar sesión para ver y confirmar tu carrito.</p>
+          <p className="mt-3 text-sm text-stone-600">Necesitás iniciar sesión para ver y confirmar tu carrito.</p>
           <Link to="/auth?redirect=/cart" className="mt-6 inline-flex rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white">
             Ingresar o crear cuenta
           </Link>
@@ -232,7 +219,7 @@ export default function CartPage({
 
         {success ? (
           <div className="rounded-3xl bg-white p-8">
-            <h2 className="text-2xl font-semibold">Orden creada</h2>
+            <h2 className="text-2xl font-semibold">Pedido creado</h2>
             <p className="mt-3 text-sm text-stone-600">Pedido {success.id} generado con estado {success.status}.</p>
             <p className="mt-2 text-sm text-stone-600">Total: ${success.totalPrice.toFixed(2)}</p>
             <Link to="/orders" className="mt-5 inline-flex rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white">
@@ -243,7 +230,7 @@ export default function CartPage({
 
         {!loading && cart && cart.items.length === 0 && !success ? (
           <div className="rounded-3xl bg-white p-8">
-            <p className="text-sm text-stone-600">No tienes items en el carrito.</p>
+            <p className="text-sm text-stone-600">No tenés productos en el carrito.</p>
           </div>
         ) : null}
 
@@ -263,13 +250,13 @@ export default function CartPage({
                       <div>
                         <p className="text-xs uppercase tracking-[0.2em] text-stone-500">{item.configurationCode}</p>
                         <h2 className="mt-2 text-xl font-semibold">{garment?.name || 'Prenda personalizada'}</h2>
-                        <p className="mt-2 text-sm text-stone-600">{contentName || 'Configuracion personalizada'}</p>
+                        <p className="mt-2 text-sm text-stone-600">{contentName || 'Configuración personalizada'}</p>
                         <div className="mt-4 grid gap-2 text-sm text-stone-600">
                           <p>Color: {colorName}</p>
                           <p>Talle: {sizeName}</p>
                           <p>Estampa: {item.printPlacementCode}</p>
                           <p>Logo: {item.logoPlacementCode}</p>
-                          <p>Tamano: {item.transferSizeCode}</p>
+                          <p>Tamaño: {item.transferSizeCode}</p>
                           <p>Cantidad: {item.quantity}</p>
                           {customPayload?.assets?.length ? <p>Archivos: {customPayload.assets.length}</p> : null}
                           {customPayload?.text ? <p>Texto: {customPayload.text}</p> : null}
@@ -302,7 +289,7 @@ export default function CartPage({
               </div>
               <div className="mt-5 rounded-2xl bg-stone-100 p-4 text-sm">
                 <p>
-                  <strong>Items:</strong> {cart.totalItems}
+                  <strong>Productos:</strong> {cart.totalItems}
                 </p>
                 <p className="mt-2">
                   <strong>Total:</strong> ${cart.totalPrice.toFixed(2)}
@@ -310,11 +297,12 @@ export default function CartPage({
               </div>
               <button
                 onClick={() => void submitOrder()}
-                disabled={submitting || !customerName.trim() || !customerEmail.trim()}
+                disabled={submitting || Boolean(submitDisabledReason)}
                 className="mt-5 w-full rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white disabled:opacity-40"
               >
-                {submitting ? 'Creando orden...' : 'Confirmar pedido'}
+                {submitting ? 'Creando pedido...' : 'Confirmar pedido'}
               </button>
+              {submitDisabledReason ? <p className="mt-2 text-xs text-amber-700">{submitDisabledReason}</p> : null}
             </div>
           </div>
         ) : null}

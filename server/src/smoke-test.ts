@@ -132,24 +132,15 @@ async function main() {
       body: JSON.stringify({
         customerName: 'Smoke Test',
         customerEmail,
-        items: [
-          {
-            customizationMode: 'brand_design',
-            garmentModelId: seededGarment.id,
-            colorId: seededStock.colorId,
-            sizeId: seededStock.sizeId,
-            designId: seededDesign.id,
-            printPlacementCode: 'FRONT',
-            logoPlacementCode: 'LC',
-            transferSizeCode: seededDesign.transferSizes?.[0]?.sizeCode || 'mediano',
-            quantity: 2,
-            configurationSnapshotJson: JSON.stringify({ source: 'smoke-test' }),
-          },
-        ],
       }),
     });
     assert(order.status === 'pending', 'Order should start as pending');
     assert(order.totalPrice > 0, 'Order total should be calculated by backend');
+
+    const emptiedCart = await api<{ totalItems: number }>(baseUrl, '/api/cart', {
+      headers: customerHeaders,
+    });
+    assert(emptiedCart.totalItems === 0, 'Cart should be emptied after successful order creation');
 
     const myOrders = await api<{ total: number; orders: Array<{ id: string }> }>(baseUrl, '/api/orders/my-orders', {
       headers: customerHeaders,

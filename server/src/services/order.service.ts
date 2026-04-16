@@ -1,8 +1,13 @@
 import { prisma } from '../db.js';
 import { ConfiguratorService } from './configurator.service.js';
 import { CreateOrderRequest, OrderResponse, UpdateOrderStatusRequest, UploadedCustomizationPayload } from '../types/order.js';
+import { AppError } from '../middleware/errorHandler.js';
 
 export class OrderService {
+  private static validateCustomerEmail(email: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
   private static normalizeCustomPayload(value: CreateOrderRequest['items'][number]['customAssetUrls']) {
     if (!value) {
       return null;
@@ -16,14 +21,82 @@ export class OrderService {
     return value;
   }
 
-  static async createOrder(userId: string, request: CreateOrderRequest): Promise<OrderResponse> {
-    if (!request.items || request.items.length === 0) {
-      throw new Error('Order must contain at least one item');
+  private static readUploadedAssetCount(value: CreateOrderRequest['items'][number]['customAssetUrls']) {
+    if (!value) {
+      return 0;
     }
 
+    if (Array.isArray(value)) {
+      return value.length;
+    }
+
+    return Array.isArray(value.assets) ? value.assets.length : 0;
+  }
+
+  private static async getRequestItems(userId: string, request: CreateOrderRequest) {
+    if (request.items?.length) {
+      return request.items;
+    }
+
+    const cart = await prisma.cart.findUnique({
+      where: { userId },
+      include: { items: { orderBy: { createdAt: 'asc' } } },
+    });
+
+    if (!cart || !cart.items.length) {
+      throw new AppError('Tu carrito está vacío.', 400);
+    }
+
+    return cart.items.map((item) => ({
+      customizationMode: item.customizationMode as CreateOrderRequest['items'][number]['customizationMode'],
+      garmentModelId: item.garmentModelId,
+      colorId: item.colorId,
+      sizeId: item.sizeId,
+      printPlacementCode: item.printPlacementCode,
+      logoPlacementCode: item.logoPlacementCode,
+      transferSizeCode: item.transferSizeCode as CreateOrderRequest['items'][number]['transferSizeCode'],
+      designId: item.designId || undefined,
+      uploadTemplateId: item.uploadTemplateId || undefined,
+      customDesignUrl: item.customDesignUrl || undefined,
+      customAssetUrls: item.customAssetUrlsJson ? JSON.parse(item.customAssetUrlsJson) : undefined,
+      quantity: item.quantity,
+      configurationCode: item.configurationCode,
+      layoutSnapshot: item.layoutSnapshotJson ? JSON.parse(item.layoutSnapshotJson) : undefined,
+      configurationSnapshotJson: item.configurationSnapshotJson || undefined,
+    }));
+  }
+
+  static async createOrder(userId: string, request: CreateOrderRequest): Promise<OrderResponse> {
+    if (!request.customerName.trim()) {
+      throw new AppError('Completá el nombre para el pedido.', 400);
+    }
+
+    if (!this.validateCustomerEmail(request.customerEmail)) {
+      throw new AppError('Ingresá un email válido para el pedido.', 400);
+    }
+
+    const sourceItems = await this.getRequestItems(userId, request);
+
     const validatedItems = await Promise.all(
-      request.items.map(async (item) => {
+      sourceItems.map(async (item) => {
         const quantity = item.quantity || 1;
+
+        if (item.customizationMode === 'user_upload') {
+          const template = await prisma.uploadTemplate.findUnique({
+            where: { id: item.uploadTemplateId },
+            select: { id: true, requiredImageCount: true, active: true },
+          });
+
+          if (!template || !template.active) {
+            throw new AppError('No encontramos la plantilla de personalizado seleccionada.', 404);
+          }
+
+          const uploadedAssetCount = this.readUploadedAssetCount(item.customAssetUrls);
+          if (uploadedAssetCount !== template.requiredImageCount) {
+            throw new AppError(`Debés cargar ${template.requiredImageCount} imagen${template.requiredImageCount === 1 ? '' : 'es'} para esta personalización.`, 400);
+          }
+        }
+
         const config = await new ConfiguratorService().resolveConfiguration({
           customizationMode: item.customizationMode,
           garmentModelId: item.garmentModelId,
@@ -37,7 +110,7 @@ export class OrderService {
         });
 
         if (!config.valid) {
-          throw new Error('Order item is not producible');
+          throw new AppError('Uno de los productos del carrito ya no tiene stock o dejó de estar disponible.', 400);
         }
 
         return {
@@ -60,12 +133,14 @@ export class OrderService {
             logoPlacementCode: item.logoPlacementCode,
             unitPrice: config.price,
             layoutSnapshotJson: item.layoutSnapshot ? JSON.stringify(item.layoutSnapshot) : null,
-            configurationSnapshotJson: item.configurationSnapshotJson || JSON.stringify({
-              configurationCode: config.configurationCode,
-              availableLogoPlacements: config.allowedLogoPlacements.map((placement) => placement.code),
-              selectedTransferSize: config.selectedTransferSize,
-              printArea: config.printArea,
-            }),
+            configurationSnapshotJson:
+              item.configurationSnapshotJson ||
+              JSON.stringify({
+                configurationCode: config.configurationCode,
+                availableLogoPlacements: config.allowedLogoPlacements.map((placement) => placement.code),
+                selectedTransferSize: config.selectedTransferSize,
+                printArea: config.printArea,
+              }),
           },
         };
       })
@@ -73,20 +148,35 @@ export class OrderService {
 
     const totalPrice = validatedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
 
-    const order = await prisma.order.create({
-      data: {
-        userId,
-        customerName: request.customerName,
-        customerEmail: request.customerEmail,
-        totalPrice,
-        status: 'pending',
-        items: {
-          create: validatedItems.map((item) => item.data),
+    const order = await prisma.$transaction(async (tx) => {
+      const createdOrder = await tx.order.create({
+        data: {
+          userId,
+          customerName: request.customerName.trim(),
+          customerEmail: request.customerEmail.trim(),
+          totalPrice,
+          status: 'pending',
+          items: {
+            create: validatedItems.map((item) => item.data),
+          },
         },
-      },
-      include: {
-        items: true,
-      },
+        include: {
+          items: true,
+        },
+      });
+
+      const cart = await tx.cart.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+
+      if (cart) {
+        await tx.cartItem.deleteMany({
+          where: { cartId: cart.id },
+        });
+      }
+
+      return createdOrder;
     });
 
     return this.formatOrderResponse(order);
@@ -99,7 +189,7 @@ export class OrderService {
     });
 
     if (!order) {
-      throw new Error('Order not found');
+      throw new AppError('No encontramos ese pedido.', 404);
     }
 
     return this.formatOrderResponse(order);

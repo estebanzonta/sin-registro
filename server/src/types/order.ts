@@ -42,7 +42,7 @@ export interface OrderItemData {
 export interface CreateOrderRequest {
   customerName: string;
   customerEmail: string;
-  items: OrderItemData[];
+  items?: OrderItemData[];
 }
 
 export interface UpdateOrderStatusRequest {

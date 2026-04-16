@@ -303,9 +303,9 @@ export default function DesignsAdmin() {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const message = error.response?.data?.message || error.response?.data?.error;
-        setSaveError(typeof message === 'string' && message.trim() ? message : 'No se pudo guardar el diseno');
+        setSaveError(typeof message === 'string' && message.trim() ? message : 'No se pudo guardar el diseño');
       } else {
-        setSaveError(error instanceof Error ? error.message : 'No se pudo guardar el diseno');
+        setSaveError(error instanceof Error ? error.message : 'No se pudo guardar el diseño');
       }
     } finally {
       setSaving(false);
@@ -315,25 +315,25 @@ export default function DesignsAdmin() {
   return (
     <div className="animate-in fade-in duration-500">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Disenos de marca</h1>
-        <p className="mt-1 text-gray-500">Edita estampas fijas por categoria y capsulas limitadas como modelo de venta separado.</p>
+        <h1 className="text-2xl font-bold text-gray-900">Diseños de marca</h1>
+        <p className="mt-1 text-gray-500">Edita estampas fijas por categoría y cápsulas limitadas como modelo de venta separado.</p>
       </div>
 
       <div className="mb-8 grid gap-6 xl:grid-cols-2">
         <form onSubmit={handleCreateCategory} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-800">
-            <Layers3 size={20} className="text-indigo-500" /> Nueva categoria fija
+            <Layers3 size={20} className="text-indigo-500" /> Nueva categoría fija
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
             <input className="rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="Ej. Anime" value={newCategory.name} onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))} required />
             <input className="rounded-xl border border-gray-200 bg-gray-50 p-3 uppercase" placeholder="ANI" value={newCategory.code} onChange={(event) => setNewCategory((current) => ({ ...current, code: event.target.value.toUpperCase() }))} required />
           </div>
-          <button className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 font-medium text-white" type="submit">Guardar categoria</button>
+          <button className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 font-medium text-white" type="submit">Guardar categoría</button>
         </form>
 
         <form onSubmit={handleCreateCollection} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-800">
-            <Plus size={20} className="text-emerald-500" /> Nueva capsula
+            <Plus size={20} className="text-emerald-500" /> Nueva cápsula
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
             <input className="rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="Ej. Drop invierno" value={newCollection.name} onChange={(event) => setNewCollection((current) => ({ ...current, name: event.target.value }))} required />
@@ -341,21 +341,21 @@ export default function DesignsAdmin() {
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <input className="rounded-xl border border-gray-200 bg-gray-50 p-3" type="datetime-local" value={newCollection.endsAt} onChange={(event) => setNewCollection((current) => ({ ...current, endsAt: event.target.value }))} />
-            <textarea className="min-h-24 rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="Descripcion opcional" value={newCollection.description} onChange={(event) => setNewCollection((current) => ({ ...current, description: event.target.value }))} />
+            <textarea className="min-h-24 rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="Descripción opcional" value={newCollection.description} onChange={(event) => setNewCollection((current) => ({ ...current, description: event.target.value }))} />
           </div>
-          <p className="mt-3 text-sm text-gray-500">Las capsulas siempre se tratan como venta limitada. El limite puede venir por fechas, por stock o por ambos.</p>
-          <button className="mt-4 rounded-xl bg-emerald-600 px-5 py-3 font-medium text-white" type="submit">Guardar capsula</button>
+          <p className="mt-3 text-sm text-gray-500">Las cápsulas siempre se tratan como venta limitada. El límite puede venir por fechas, por stock o por ambos.</p>
+          <button className="mt-4 rounded-xl bg-emerald-600 px-5 py-3 font-medium text-white" type="submit">Guardar cápsula</button>
         </form>
       </div>
 
       <div className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center justify-between gap-4">
           <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800">
-            <ImageIcon size={20} className="text-pink-500" /> {editingDesignId ? 'Editar diseno' : 'Nuevo diseno'}
+            <ImageIcon size={20} className="text-pink-500" /> {editingDesignId ? 'Editar diseño' : 'Nuevo diseño'}
           </h2>
           {editingDesignId ? (
             <button type="button" onClick={() => resetForm()} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
-              <X size={16} /> Cancelar edicion
+              <X size={16} /> Cancelar edición
             </button>
           ) : null}
         </div>
@@ -367,7 +367,7 @@ export default function DesignsAdmin() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Codigo</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Código</label>
             <input className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 uppercase" value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} required />
           </div>
 
@@ -377,7 +377,7 @@ export default function DesignsAdmin() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Capsula</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Cápsula</label>
             <select
               className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3"
               value={form.collectionId}
@@ -390,7 +390,7 @@ export default function DesignsAdmin() {
                 }));
               }}
             >
-              <option value="">Sin capsula (diseno fijo)</option>
+              <option value="">Sin cápsula (diseño fijo)</option>
               {capsuleCollections.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -400,7 +400,7 @@ export default function DesignsAdmin() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Categoria</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Categoría</label>
             <select
               className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 disabled:cursor-not-allowed disabled:bg-gray-100"
               value={isCapsuleDesign ? '' : form.designCategoryId}
@@ -408,7 +408,7 @@ export default function DesignsAdmin() {
               required={!isCapsuleDesign}
               disabled={isCapsuleDesign}
             >
-              <option value="">{isCapsuleDesign ? 'Las capsulas no usan categoria' : 'Selecciona una categoria'}</option>
+              <option value="">{isCapsuleDesign ? 'Las cápsulas no usan categoría' : 'Selecciona una categoría'}</option>
               {designCategories.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name} ({item.code})
@@ -416,12 +416,12 @@ export default function DesignsAdmin() {
               ))}
             </select>
             <p className="mt-1 text-xs text-gray-500">
-              {isCapsuleDesign ? 'Este diseno se vendera como capsula limitada y no se asocia a categoria.' : 'Los disenos fijos se ordenan por categoria y no usan capsula.'}
+              {isCapsuleDesign ? 'Este diseño se venderá como cápsula limitada y no se asocia a categoría.' : 'Los diseños fijos se ordenan por categoría y no usan cápsula.'}
             </p>
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Imagen del diseno</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Imagen del diseño</label>
             <div className="flex gap-2">
               <input className="flex-1 rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="/uploads/designs/..." value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} required />
               <label className="cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700">
@@ -433,7 +433,7 @@ export default function DesignsAdmin() {
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Descripcion</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Descripción</label>
             <textarea className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
           </div>
 
@@ -449,22 +449,22 @@ export default function DesignsAdmin() {
               </div>
             ) : (
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                No hay placements de impresion configurados en el sistema. Igual podes editar el diseno y guardar cambios.
+                No hay placements de impresión configurados en el sistema. Igual podés editar el diseño y guardar cambios.
               </p>
             )}
           </div>
 
           <div className="md:col-span-2">
             <div className="mb-2 flex items-center justify-between gap-4">
-              <label className="block text-sm font-medium text-gray-700">Tamanos de transfer y stock</label>
+              <label className="block text-sm font-medium text-gray-700">Tamaños de transfer y stock</label>
               <button type="button" onClick={addTransferSize} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
-                Agregar tamano
+                Agregar tamaño
               </button>
             </div>
             <div className="space-y-3">
               {form.transferSizes.map((item, index) => (
                 <div key={`${item.sizeCode}-${index}`} className="grid gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 md:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
-                  <input className="rounded-xl border border-gray-200 bg-white p-3" placeholder="Codigo" value={item.sizeCode} onChange={(event) => updateTransferSize(index, 'sizeCode', event.target.value)} />
+                  <input className="rounded-xl border border-gray-200 bg-white p-3" placeholder="Código" value={item.sizeCode} onChange={(event) => updateTransferSize(index, 'sizeCode', event.target.value)} />
                   <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.1" placeholder="Ancho cm" value={item.widthCm} onChange={(event) => updateTransferSize(index, 'widthCm', event.target.value)} />
                   <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.1" placeholder="Alto cm" value={item.heightCm} onChange={(event) => updateTransferSize(index, 'heightCm', event.target.value)} />
                   <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" placeholder="Stock" value={item.stock} onChange={(event) => updateTransferSize(index, 'stock', event.target.value)} />
@@ -479,16 +479,16 @@ export default function DesignsAdmin() {
 
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <input type="checkbox" checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))} />
-            Diseno activo
+            Diseño activo
           </label>
 
           <div className="flex items-center text-sm text-gray-500">
-            {isCapsuleDesign ? 'Se guardara como capsula limitada.' : 'Se guardara como diseno fijo de catalogo.'}
+            {isCapsuleDesign ? 'Se guardará como cápsula limitada.' : 'Se guardará como diseño fijo de catálogo.'}
           </div>
 
           <div className="md:col-span-2 flex justify-end">
             <button disabled={saving} className="rounded-xl bg-pink-600 px-6 py-3 font-medium text-white disabled:opacity-50" type="submit">
-              {saving ? 'Guardando...' : editingDesignId ? 'Guardar cambios' : 'Guardar diseno'}
+              {saving ? 'Guardando...' : editingDesignId ? 'Guardar cambios' : 'Guardar diseño'}
             </button>
           </div>
           {saveError ? <p className="md:col-span-2 text-sm text-rose-600">{saveError}</p> : null}
@@ -508,14 +508,14 @@ export default function DesignsAdmin() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-gray-600">{design.code}</span>
                     <span className={`rounded-full px-3 py-1 text-xs font-medium ${isFixed ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                      {isFixed ? 'Fijo' : 'Capsula'}
+                      {isFixed ? 'Fijo' : 'Cápsula'}
                     </span>
                     {capsule ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">{capsule.name}</span> : null}
                     {isFixed && design.designCategory ? <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">{design.designCategory.name}</span> : null}
                     {!design.active ? <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700">Inactivo</span> : null}
                   </div>
                   <h3 className="mt-3 text-lg font-bold text-gray-900">{design.name}</h3>
-                  <p className="mt-1 text-sm text-gray-500">{design.description || 'Sin descripcion'}</p>
+                  <p className="mt-1 text-sm text-gray-500">{design.description || 'Sin descripción'}</p>
                   <p className="mt-3 text-xs text-gray-500">
                     {(design.transferSizes || []).map((item) => `${item.sizeCode}: ${item.stock}`).join(' · ')}
                   </p>

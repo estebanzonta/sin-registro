@@ -47,7 +47,7 @@ export class ConfiguratorService {
     });
 
     if (!model || !model.active) {
-      throw new AppError('Garment model not found', 404);
+      throw new AppError('No encontramos el modelo de prenda seleccionado.', 404);
     }
 
     const blankStock = await prisma.blankStock.findUnique({
@@ -61,17 +61,17 @@ export class ConfiguratorService {
     });
 
     if (!blankStock) {
-      throw new AppError('Blank stock not found', 404);
+      throw new AppError('No encontramos stock base para esa combinación de prenda, color y talle.', 404);
     }
 
     const printArea = await this.getPrintArea(garmentModelId, printPlacementCode);
     if (!printArea) {
-      throw new AppError('Print area not configured for this garment and placement', 400);
+      throw new AppError('La zona de impresión no está configurada para esa prenda y ubicación.', 400);
     }
 
     const allowedLogoCodes = VALID_LOGO_PLACEMENTS[printPlacementCode] || [];
     if (allowedLogoCodes.length === 0) {
-      throw new AppError('Invalid print placement', 400);
+      throw new AppError('La ubicación de estampa seleccionada no es válida.', 400);
     }
 
     const allowedLogoPlacements = await prisma.placement.findMany({
@@ -84,12 +84,12 @@ export class ConfiguratorService {
     }) as Placement[];
 
     if (!logoPlacementCode) {
-      throw new AppError('Logo placement is required', 400);
+      throw new AppError('Debés seleccionar una ubicación para el logo.', 400);
     }
 
     const selectedLogoPlacement = allowedLogoPlacements.find((placement) => placement.code === logoPlacementCode);
     if (!selectedLogoPlacement) {
-      throw new AppError('Logo placement is not valid for the selected print placement', 400);
+      throw new AppError('La ubicación del logo no es válida para la estampa seleccionada.', 400);
     }
 
     let extraPrice = 0;
@@ -100,7 +100,7 @@ export class ConfiguratorService {
 
     if (customizationMode === 'brand_design') {
       if (!designId) {
-        throw new AppError('Design is required for brand design mode', 400);
+        throw new AppError('Debés seleccionar un diseño de la marca.', 400);
       }
 
       const design = await prisma.design.findUnique({
@@ -113,25 +113,25 @@ export class ConfiguratorService {
       });
 
       if (!design || !design.active) {
-        throw new AppError('Design not found', 404);
+        throw new AppError('No encontramos el diseño seleccionado.', 404);
       }
 
       if (design.collection) {
         const now = new Date();
         if (!design.collection.active) {
-          throw new AppError('Design collection is inactive', 400);
+          throw new AppError('La colección del diseño está inactiva.', 400);
         }
         if (design.collection.startsAt && design.collection.startsAt > now) {
-          throw new AppError('Design collection is not active yet', 400);
+          throw new AppError('La colección del diseño todavía no está disponible.', 400);
         }
         if (design.collection.endsAt && design.collection.endsAt < now) {
-          throw new AppError('Design collection is no longer available', 400);
+          throw new AppError('La colección del diseño ya no está disponible.', 400);
         }
       }
 
       const allowedPrintPlacements = design.placements.map((item) => item.placement.code);
       if (allowedPrintPlacements.length > 0 && !allowedPrintPlacements.includes(printPlacementCode)) {
-        throw new AppError('Design is not available for the selected print placement', 400);
+        throw new AppError('Ese diseño no está disponible para la ubicación de estampa elegida.', 400);
       }
 
       availableTransferSizes = design.transferSizes.map((sizeOption) => ({
@@ -144,7 +144,7 @@ export class ConfiguratorService {
 
       const transferSize = availableTransferSizes.find((item) => item.code === transferSizeCode);
       if (!transferSize) {
-        throw new AppError('Transfer size is not available for this design', 400);
+        throw new AppError('El tamaño de transfer elegido no está disponible para ese diseño.', 400);
       }
 
       transferStock = transferSize.stock;
@@ -153,7 +153,7 @@ export class ConfiguratorService {
       baseCode = design.code;
     } else {
       if (!uploadTemplateId) {
-        throw new AppError('Upload template is required for user upload mode', 400);
+        throw new AppError('Debés seleccionar un tipo de personalización.', 400);
       }
 
       const template = await prisma.uploadTemplate.findUnique({
@@ -165,11 +165,11 @@ export class ConfiguratorService {
       });
 
       if (!template || !template.active) {
-        throw new AppError('Upload template not found', 404);
+        throw new AppError('No encontramos la plantilla de personalización seleccionada.', 404);
       }
 
       if (template.placement.code !== printPlacementCode) {
-        throw new AppError('Upload template is not valid for the selected print placement', 400);
+        throw new AppError('La plantilla elegida no es válida para la ubicación de estampa seleccionada.', 400);
       }
 
       availableTransferSizes = template.sizeOptions.map((sizeOption) => ({
@@ -182,7 +182,7 @@ export class ConfiguratorService {
 
       const templateSize = availableTransferSizes.find((item) => item.code === transferSizeCode);
       if (!templateSize) {
-        throw new AppError('Transfer size is not available for this upload template', 400);
+        throw new AppError('El tamaño de transfer elegido no está disponible para esa plantilla.', 400);
       }
 
       extraPrice = templateSize.extraPrice;

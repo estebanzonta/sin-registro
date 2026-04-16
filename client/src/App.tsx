@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrowserRouter, Navigate, Outlet, Route, Routes, Link } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import axios from 'axios';
 import { ClipboardList, Image as ImageIcon, LayoutDashboard, PackageSearch, Settings, Shield, Shirt } from 'lucide-react';
 import { readFriendlyApiError } from './lib/apiErrors';
@@ -87,30 +87,32 @@ function AdminLogin({ onLogin }: { onLogin: (session: SessionState) => void }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
+    <div className="admin-surface flex min-h-screen items-center justify-center bg-gray-100 p-6">
       <form onSubmit={handleSubmit} className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Admin</p>
         <h1 className="mt-2 text-3xl font-bold text-gray-900">Ingreso al panel</h1>
-        <p className="mt-2 text-sm text-gray-500">Usa un usuario admin valido para gestionar catalogo, stock y produccion.</p>
+        <p className="mt-2 text-sm text-gray-500">Usá un usuario admin válido para gestionar catálogo, stock y producción.</p>
 
         <div className="mt-6 space-y-4">
           <input
-            className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 text-gray-900 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-blue-500"
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="admin@example.com"
+            autoComplete="username"
           />
           <input
-            className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 text-gray-900 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-blue-500"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="Password"
+            placeholder="Contraseña"
+            autoComplete="current-password"
           />
         </div>
 
-        {error && <p className="mt-4 text-sm text-rose-600">{error}</p>}
+        {error ? <p className="mt-4 text-sm text-rose-600">{error}</p> : null}
 
         <button
           className="mt-6 w-full rounded-2xl bg-blue-600 px-5 py-4 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
@@ -129,7 +131,7 @@ const Dashboard = () => (
     <div className="mb-8 flex items-center justify-between">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">Panel operativo</h1>
-        <p className="mt-1 text-gray-500">Catalogo, stock y configuraciones de produccion.</p>
+        <p className="mt-1 text-gray-500">Catálogo, stock y configuraciones de producción.</p>
       </div>
     </div>
 
@@ -167,7 +169,7 @@ const Dashboard = () => (
 
 function AdminShell({ session, onLogout }: { session: SessionState; onLogout: () => void }) {
   return (
-    <div className="flex h-screen bg-gray-50 font-sans text-gray-800">
+    <div className="admin-surface flex min-h-screen w-full bg-gray-50 font-sans text-gray-800">
       <aside className="hidden w-72 flex-col border-r border-gray-200 bg-white shadow-sm md:flex">
         <div className="flex items-center gap-3 border-b border-gray-100 p-6">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 font-bold text-white">A</div>
@@ -182,7 +184,7 @@ function AdminShell({ session, onLogout }: { session: SessionState; onLogout: ()
             <Shirt size={20} className="text-purple-500" /> Modelos base
           </Link>
           <Link to="/admin/designs" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
-            <ImageIcon size={20} className="text-pink-500" /> Disenos de marca
+            <ImageIcon size={20} className="text-pink-500" /> Diseños de marca
           </Link>
           <Link to="/admin/stock" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
             <PackageSearch size={20} className="text-emerald-500" /> Stock lisas
@@ -191,7 +193,7 @@ function AdminShell({ session, onLogout }: { session: SessionState; onLogout: ()
             <ClipboardList size={20} className="text-amber-500" /> Pedidos
           </Link>
           <Link to="/admin/production" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
-            <Settings size={20} className="text-blue-500" /> Produccion
+            <Settings size={20} className="text-blue-500" /> Producción
           </Link>
           <Link to="/admin/users" className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
             <Shield size={20} className="text-indigo-500" /> Usuarios
@@ -203,7 +205,7 @@ function AdminShell({ session, onLogout }: { session: SessionState; onLogout: ()
           </Link>
         </div>
       </aside>
-      <main className="flex h-screen flex-1 flex-col overflow-hidden">
+      <main className="flex min-h-screen flex-1 flex-col overflow-hidden bg-gray-50 text-gray-800">
         <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-8 shadow-sm">
           <h1 className="text-lg font-semibold text-gray-700">Administracion</h1>
           <div className="flex items-center gap-4">
@@ -216,7 +218,7 @@ function AdminShell({ session, onLogout }: { session: SessionState; onLogout: ()
             </button>
           </div>
         </header>
-        <div className="flex-1 overflow-auto bg-gray-50/50 p-8">
+        <div className="flex-1 overflow-auto bg-gray-50/50 p-8 text-gray-800">
           <div className="mx-auto max-w-6xl">
             <Outlet />
           </div>
@@ -228,11 +230,57 @@ function AdminShell({ session, onLogout }: { session: SessionState; onLogout: ()
 
 export default function App() {
   const [session, setSession] = useState<SessionState | null>(() => readSession());
+  const [sessionChecked, setSessionChecked] = useState(() => !readSession());
   const [, setCustomerCartCount] = useState(0);
 
   useEffect(() => {
     applyToken(session?.token || null);
   }, [session]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!session?.token) {
+      setSessionChecked(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setSessionChecked(false);
+
+    axios
+      .get('/api/auth/me')
+      .then((response) => {
+        if (cancelled) return;
+
+        const nextSession = {
+          token: session.token,
+          user: {
+            id: response.data.id,
+            email: response.data.email,
+            role: response.data.role,
+          },
+        } as SessionState;
+
+        persistSession(nextSession);
+        setSession(nextSession);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        persistSession(null);
+        setSession(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSessionChecked(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.token]);
 
   const adminLayout = useMemo(
     () =>
@@ -249,6 +297,10 @@ export default function App() {
       ),
     [session]
   );
+
+  if (!sessionChecked) {
+    return <div className="flex min-h-screen items-center justify-center bg-stone-100 text-sm text-stone-600">Validando sesión...</div>;
+  }
 
   return (
     <BrowserRouter>
