@@ -608,7 +608,7 @@ export const uploadAsset = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-export const getPlacements = asyncHandler(async (req: Request, res: Response) => {
+export const getPlacements = asyncHandler(async (_req: Request, res: Response) => {
   const placements = await prisma.placement.findMany({
     orderBy: [{ kind: 'asc' }, { code: 'asc' }],
   });
@@ -616,7 +616,7 @@ export const getPlacements = asyncHandler(async (req: Request, res: Response) =>
   res.json(placements);
 });
 
-export const getBrandLogos = asyncHandler(async (req: Request, res: Response) => {
+export const getBrandLogos = asyncHandler(async (_req: Request, res: Response) => {
   const logos = await prisma.brandLogo.findMany({
     include: {
       placements: {
@@ -784,7 +784,7 @@ export const deleteBrandLogo = asyncHandler(async (req: Request, res: Response) 
   res.json({ message: 'Logo eliminado.' });
 });
 
-export const bootstrapPlacements = asyncHandler(async (req: Request, res: Response) => {
+export const bootstrapPlacements = asyncHandler(async (_req: Request, res: Response) => {
   const defaults = [
     { code: 'FRONT', name: 'Estampa frente', kind: 'print', surface: 'front' },
     { code: 'BACK', name: 'Estampa espalda', kind: 'print', surface: 'back' },
@@ -815,7 +815,7 @@ export const bootstrapPlacements = asyncHandler(async (req: Request, res: Respon
   res.status(201).json(placements);
 });
 
-export const getPrintAreas = asyncHandler(async (req: Request, res: Response) => {
+export const getPrintAreas = asyncHandler(async (_req: Request, res: Response) => {
   const printAreas = await prisma.printArea.findMany({
     include: {
       garmentModel: true,
@@ -873,7 +873,7 @@ export const createPrintArea = asyncHandler(async (req: Request, res: Response) 
   res.status(201).json(printArea);
 });
 
-export const getUploadTemplates = asyncHandler(async (req: Request, res: Response) => {
+export const getUploadTemplates = asyncHandler(async (_req: Request, res: Response) => {
   const templates = await prisma.uploadTemplate.findMany({
     include: {
       placement: true,

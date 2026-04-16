@@ -39,6 +39,7 @@ async function uploadToSupabase(folder: string, filename: string, buffer: Buffer
 
   const objectPath = `${folder}/${filename}`;
   const uploadUrl = `${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`;
+  const body = new Uint8Array(buffer);
   const response = await fetch(uploadUrl, {
     method: 'POST',
     headers: {
@@ -47,7 +48,7 @@ async function uploadToSupabase(folder: string, filename: string, buffer: Buffer
       'Content-Type': contentType,
       'x-upsert': 'true',
     },
-    body: buffer,
+    body,
   });
 
   if (!response.ok) {
