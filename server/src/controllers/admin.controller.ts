@@ -225,7 +225,7 @@ export const deleteGarmentModel = asyncHandler(async (req: Request, res: Respons
   res.json({ message: 'Modelo de prenda eliminado.' });
 });
 
-export const getDesigns = asyncHandler(async (req: Request, res: Response) => {
+export const getDesigns = asyncHandler(async (_req: Request, res: Response) => {
   const designs = await prisma.design.findMany({
     include: {
       collection: true,
@@ -447,14 +447,14 @@ export const deleteDesign = asyncHandler(async (req: Request, res: Response) => 
   res.json({ message: 'Diseño eliminado.' });
 });
 
-export const getBlankStock = asyncHandler(async (req: Request, res: Response) => {
+export const getBlankStock = asyncHandler(async (_req: Request, res: Response) => {
   const stock = await prisma.blankStock.findMany({
     include: { garmentModel: true, color: true, size: true },
   });
   res.json(stock);
 });
 
-export const getUsers = asyncHandler(async (req: Request, res: Response) => {
+export const getUsers = asyncHandler(async (_req: Request, res: Response) => {
   const users = await prisma.user.findMany({
     include: {
       _count: {
@@ -518,7 +518,7 @@ export const updateBlankStock = asyncHandler(async (req: Request, res: Response)
   res.json(record);
 });
 
-export const getCollections = asyncHandler(async (req: Request, res: Response) => {
+export const getCollections = asyncHandler(async (_req: Request, res: Response) => {
   const collections = await prisma.collection.findMany({
     include: { designs: true },
   });
@@ -556,7 +556,7 @@ export const createColor = asyncHandler(async (req: Request, res: Response) => {
   const color = await prisma.color.create({
     data: {
       name,
-      hex,
+      hex: hex as string,
     },
   });
 
