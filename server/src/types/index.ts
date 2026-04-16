@@ -52,14 +52,14 @@ export interface Color {
 export interface GarmentModel {
   id: string;
   categoryId: string;
-  category?: Category;
+  category?: Category | null;
   name: string;
   slug: string;
   description?: string | null;
   basePrice: number;
   active: boolean;
-  frontMockupUrl?: string;
-  backMockupUrl?: string;
+  frontMockupUrl?: string | null;
+  backMockupUrl?: string | null;
   sizes?: GarmentModelSize[];
   colors?: GarmentModelColor[];
   printAreas?: PrintArea[];
@@ -68,31 +68,31 @@ export interface GarmentModel {
 export interface GarmentModelSize {
   id: string;
   garmentModelId: string;
-  garmentModel?: GarmentModel;
+  garmentModel?: GarmentModel | null;
   sizeId: string;
-  size?: Size;
+  size?: Size | null;
   active: boolean;
 }
 
 export interface GarmentModelColor {
   id: string;
   garmentModelId: string;
-  garmentModel?: GarmentModel;
+  garmentModel?: GarmentModel | null;
   colorId: string;
-  color?: Color;
-  frontMockupUrl?: string;
-  backMockupUrl?: string;
+  color?: Color | null;
+  frontMockupUrl?: string | null;
+  backMockupUrl?: string | null;
   active: boolean;
 }
 
 export interface BlankStock {
   id: string;
   garmentModelId: string;
-  garmentModel?: GarmentModel;
+  garmentModel?: GarmentModel | null;
   colorId: string;
-  color?: Color;
+  color?: Color | null;
   sizeId: string;
-  size?: Size;
+  size?: Size | null;
   quantity: number;
 }
 
@@ -109,7 +109,7 @@ export interface PrintArea {
   id: string;
   garmentModelId: string;
   placementId: string;
-  placement?: Placement;
+  placement?: Placement | null;
   xPct: number;
   yPct: number;
   widthPct: number;
@@ -140,9 +140,9 @@ export interface Collection {
 export interface Design {
   id: string;
   collectionId?: string | null;
-  collection?: Collection;
+  collection?: Collection | null;
   designCategoryId?: string | null;
-  designCategory?: DesignCategory;
+  designCategory?: DesignCategory | null;
   name: string;
   slug: string;
   code: string;
@@ -159,7 +159,7 @@ export interface DesignPlacement {
   id: string;
   designId: string;
   placementId: string;
-  placement?: Placement;
+  placement?: Placement | null;
 }
 
 export interface DesignTransferSize {
@@ -186,8 +186,8 @@ export interface UploadTemplate {
   active: boolean;
   sortOrder: number;
   placementId: string;
-  placement?: Placement;
-  previewImageUrl?: string;
+  placement?: Placement | null;
+  previewImageUrl?: string | null;
   sizeOptions?: UploadTemplateSize[];
 }
 
@@ -218,14 +218,14 @@ export interface BrandLogoPlacement {
   id: string;
   brandLogoId: string;
   placementId: string;
-  placement?: Placement;
+  placement?: Placement | null;
 }
 
 export interface BrandLogoColor {
   id: string;
   brandLogoId: string;
   colorId: string;
-  color?: Color;
+  color?: Color | null;
 }
 
 export interface CatalogInitResponse {
