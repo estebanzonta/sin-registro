@@ -23,8 +23,12 @@ export function registerAppRoutes(app: Express) {
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date() });
   });
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date() });
+  });
 
   app.use('/api', createApiRouter());
+  app.use(createApiRouter());
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Not found', statusCode: 404 });
