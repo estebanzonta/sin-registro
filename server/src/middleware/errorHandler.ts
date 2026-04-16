@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
-import { ErrorResponse } from '../types/index.js';
+import type { ErrorResponse } from '../types/index.js';
 
 export class AppError extends Error {
   statusCode: number;
@@ -14,9 +14,9 @@ export class AppError extends Error {
 
 export const errorHandler = (
   err: Error | AppError,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   let statusCode = err instanceof AppError ? err.statusCode : 500;
   let message = err.message || 'Ocurrió un error inesperado.';
