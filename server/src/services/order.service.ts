@@ -1,6 +1,12 @@
 import { prisma } from '../db.js';
 import { ConfiguratorService } from './configurator.service.js';
-import { CreateOrderRequest, OrderResponse, UpdateOrderStatusRequest, UploadedCustomizationPayload } from '../types/order.js';
+import type {
+  CreateOrderRequest,
+  OrderItemData,
+  OrderResponse,
+  UpdateOrderStatusRequest,
+  UploadedCustomizationPayload,
+} from '../types/order.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 export class OrderService {
@@ -8,7 +14,7 @@ export class OrderService {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
-  private static normalizeCustomPayload(value: CreateOrderRequest['items'][number]['customAssetUrls']) {
+  private static normalizeCustomPayload(value: OrderItemData['customAssetUrls']) {
     if (!value) {
       return null;
     }
@@ -21,7 +27,7 @@ export class OrderService {
     return value;
   }
 
-  private static readUploadedAssetCount(value: CreateOrderRequest['items'][number]['customAssetUrls']) {
+  private static readUploadedAssetCount(value: OrderItemData['customAssetUrls']) {
     if (!value) {
       return 0;
     }
@@ -48,13 +54,13 @@ export class OrderService {
     }
 
     return cart.items.map((item) => ({
-      customizationMode: item.customizationMode as CreateOrderRequest['items'][number]['customizationMode'],
+      customizationMode: item.customizationMode as OrderItemData['customizationMode'],
       garmentModelId: item.garmentModelId,
       colorId: item.colorId,
       sizeId: item.sizeId,
       printPlacementCode: item.printPlacementCode,
       logoPlacementCode: item.logoPlacementCode,
-      transferSizeCode: item.transferSizeCode as CreateOrderRequest['items'][number]['transferSizeCode'],
+      transferSizeCode: item.transferSizeCode as OrderItemData['transferSizeCode'],
       designId: item.designId || undefined,
       uploadTemplateId: item.uploadTemplateId || undefined,
       customDesignUrl: item.customDesignUrl || undefined,
