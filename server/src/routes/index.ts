@@ -27,15 +27,11 @@ export function registerAppRoutes(app: Express) {
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date() });
   });
-  app.get('/catalog/init', getCatalogInit);
   app.get('/api/catalog/init', getCatalogInit);
-  app.get('/catalog/designs', getDesigns);
   app.get('/api/catalog/designs', getDesigns);
-  app.get('/catalog/garment-models/:id', getGarmentModel);
   app.get('/api/catalog/garment-models/:id', getGarmentModel);
 
   app.use('/api', createApiRouter());
-  app.use(createApiRouter());
 
   app.use((_req, res) => {
     res.status(404).json({

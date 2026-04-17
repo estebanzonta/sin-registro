@@ -18,6 +18,7 @@ import {
   createGarmentCategory,
   createSize,
   createColor,
+  deleteColor,
   createDesignCategory,
   uploadAsset,
   getPlacements,
@@ -63,6 +64,7 @@ adminRoutes.post('/collections', createCollection);
 adminRoutes.post('/garment-categories', createGarmentCategory);
 adminRoutes.post('/sizes', createSize);
 adminRoutes.post('/colors', createColor);
+adminRoutes.delete('/colors/:id', deleteColor);
 adminRoutes.post('/design-categories', createDesignCategory);
 adminRoutes.post('/assets/upload', uploadAsset);
 

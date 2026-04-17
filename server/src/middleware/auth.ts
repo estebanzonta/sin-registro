@@ -1,9 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { readRequiredEnv } from '../config/required-env.js';
 import type { JWTPayload } from '../types/index.js';
 import { AppError } from './errorHandler.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
+const JWT_SECRET = readRequiredEnv('JWT_SECRET');
 
 declare global {
   namespace Express {

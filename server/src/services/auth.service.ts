@@ -1,10 +1,11 @@
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../db.js';
+import { readRequiredEnv } from '../config/required-env.js';
 import type { AuthRequest, AuthResponse, JWTPayload } from '../types/index.js';
 
 class AuthService {
-  private jwtSecret = process.env.JWT_SECRET || 'dev-secret-key';
+  private jwtSecret = readRequiredEnv('JWT_SECRET');
 
   validateEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

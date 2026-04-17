@@ -201,10 +201,22 @@ export const deleteGarmentModel = asyncHandler(async (req: Request, res: Respons
   });
 
   if (orderItemsCount > 0) {
-    throw new AppError('No podés eliminar un modelo de prenda que ya tiene pedidos asociados.', 400);
+    const model = await prisma.garmentModel.update({
+      where: { id },
+      data: { active: false },
+    });
+
+    res.json({
+      ...model,
+      message: 'El modelo tiene pedidos asociados. Se desactivó en lugar de eliminarse.',
+    });
+    return;
   }
 
   await prisma.$transaction(async (tx) => {
+    await tx.cartItem.deleteMany({
+      where: { garmentModelId: id },
+    });
     await tx.blankStock.deleteMany({
       where: { garmentModelId: id },
     });
@@ -561,6 +573,44 @@ export const createColor = asyncHandler(async (req: Request, res: Response) => {
   });
 
   res.status(201).json(color);
+});
+
+export const deleteColor = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const [garmentModelColorCount, blankStockCount, orderItemCount, brandLogoColorCount, cartItemCount] = await Promise.all([
+    prisma.garmentModelColor.count({ where: { colorId: id } }),
+    prisma.blankStock.count({ where: { colorId: id } }),
+    prisma.orderItem.count({ where: { colorId: id } }),
+    prisma.brandLogoColor.count({ where: { colorId: id } }),
+    prisma.cartItem.count({ where: { colorId: id } }),
+  ]);
+
+  const hasReferences =
+    garmentModelColorCount > 0 ||
+    blankStockCount > 0 ||
+    orderItemCount > 0 ||
+    brandLogoColorCount > 0 ||
+    cartItemCount > 0;
+
+  if (hasReferences) {
+    const color = await prisma.color.update({
+      where: { id },
+      data: { active: false },
+    });
+
+    res.json({
+      ...color,
+      message: 'El color tiene relaciones asociadas. Se desactivó en lugar de eliminarse.',
+    });
+    return;
+  }
+
+  await prisma.color.delete({
+    where: { id },
+  });
+
+  res.json({ message: 'Color eliminado.' });
 });
 
 export const createDesignCategory = asyncHandler(async (req: Request, res: Response) => {

@@ -2,6 +2,7 @@
 import axios from 'axios';
 import { ChevronLeft, ChevronRight, ShoppingCart, UploadCloud } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import logoAssetUrl from '../assets/Logo.svg';
 import type { AppSession } from '../App';
 import StorefrontTopBar from '../storefront/StorefrontTopBar';
 import { isAuthError, readFriendlyApiError } from '../lib/apiErrors';
@@ -696,7 +697,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     return (
       <section className="flex min-h-screen flex-col items-center justify-center bg-black p-8 text-white relative">
         <div className="fixed top-[18%] left-1/2 -translate-x-1/2 opacity-70 pointer-events-none" style={{ width: '40vw' }}>
-          <img src="/src/assets/Logo.svg" alt="Logo" className="w-full h-auto mx-auto" />
+          <img src={logoAssetUrl} alt="Logo" className="w-full h-auto mx-auto" />
         </div>
         <div className="mb-8 text-center relative z-10 mt-28"><p className="opacity-80 text-base font-medium" style={{ fontFamily: 'var(--font-body)' }}>Elegí qué querés personalizar hoy</p></div>
         <div className="flex w-full max-w-2xl gap-8 relative z-10"><button onClick={() => setScreen('product')} className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold" style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}>INDUMENTARIA</button><button className="flex h-48 flex-1 cursor-not-allowed items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold opacity-40" style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}>ACCESORIOS</button></div>
@@ -782,7 +783,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     return (
       <section className="flex min-h-screen flex-col items-center justify-center bg-black p-8 text-white relative">
         <div className="fixed top-[18%] left-1/2 -translate-x-1/2 opacity-70 pointer-events-none" style={{ width: '40vw' }}>
-          <img src="/src/assets/Logo.svg" alt="Logo" className="w-full h-auto mx-auto" />
+          <img src={logoAssetUrl} alt="Logo" className="w-full h-auto mx-auto" />
         </div>
         <header className="absolute top-0 z-10 flex w-full justify-between p-6">
           <button onClick={() => setScreen('product')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg text-black"><ChevronLeft /></button>

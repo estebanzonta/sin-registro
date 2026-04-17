@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Palette, Plus, Ruler, Shirt } from 'lucide-react';
+import { readFriendlyApiError } from '../lib/apiErrors';
 
 type Category = {
   id: string;
@@ -98,6 +99,9 @@ export default function GarmentModelsAdmin() {
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [newModel, setNewModel] = useState<ModelFormState>(EMPTY_MODEL_FORM);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
+  const [deletingColorId, setDeletingColorId] = useState<string | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void loadData();
@@ -129,6 +133,7 @@ export default function GarmentModelsAdmin() {
 
   async function uploadMockup(file: File, field: 'frontMockupUrl' | 'backMockupUrl') {
     setUploadingField(field);
+    setErrorMessage(null);
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const response = await axios.post('/api/admin/assets/upload', {
@@ -137,6 +142,9 @@ export default function GarmentModelsAdmin() {
         dataUrl,
       });
       setNewModel((current) => ({ ...current, [field]: response.data.url }));
+      setFeedbackMessage(`Mockup ${field === 'frontMockupUrl' ? 'de frente' : 'de espalda'} subido correctamente.`);
+    } catch (error) {
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo subir el mockup. Verificá el formato e intentá nuevamente.'));
     } finally {
       setUploadingField(null);
     }
@@ -144,6 +152,7 @@ export default function GarmentModelsAdmin() {
 
   async function uploadColorMockup(file: File, colorId: string, field: 'frontMockupUrl' | 'backMockupUrl') {
     setUploadingField(field);
+    setErrorMessage(null);
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const response = await axios.post('/api/admin/assets/upload', {
@@ -157,6 +166,9 @@ export default function GarmentModelsAdmin() {
           item.colorId === colorId ? { ...item, [field]: response.data.url } : item
         ),
       }));
+      setFeedbackMessage(`Mockup por color ${field === 'frontMockupUrl' ? 'de frente' : 'de espalda'} subido correctamente.`);
+    } catch (error) {
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo subir el mockup por color.'));
     } finally {
       setUploadingField(null);
     }
@@ -178,9 +190,15 @@ export default function GarmentModelsAdmin() {
 
   async function handleCreateColor(event: React.FormEvent) {
     event.preventDefault();
-    await axios.post('/api/admin/colors', newColor);
-    setNewColor({ name: '', hex: '#111111' });
-    await fetchCatalog();
+    setErrorMessage(null);
+    try {
+      await axios.post('/api/admin/colors', newColor);
+      setNewColor({ name: '', hex: '#111111' });
+      setFeedbackMessage('Color creado correctamente.');
+      await fetchCatalog();
+    } catch (error) {
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo crear el color.'));
+    }
   }
 
   function resetModelForm() {
@@ -211,20 +229,27 @@ export default function GarmentModelsAdmin() {
 
   async function handleCreateModel(event: React.FormEvent) {
     event.preventDefault();
+    setErrorMessage(null);
     const payload = {
       ...newModel,
       slug: newModel.slug || slugify(newModel.name),
       categoryId: selectedCategoryId,
     };
 
-    if (editingModelId) {
-      await axios.patch(`/api/admin/garment-models/${editingModelId}`, payload);
-    } else {
-      await axios.post('/api/admin/garment-models', payload);
-    }
+    try {
+      if (editingModelId) {
+        await axios.patch(`/api/admin/garment-models/${editingModelId}`, payload);
+        setFeedbackMessage('Modelo actualizado correctamente.');
+      } else {
+        await axios.post('/api/admin/garment-models', payload);
+        setFeedbackMessage('Modelo creado correctamente.');
+      }
 
-    await fetchModels();
-    resetModelForm();
+      await fetchModels();
+      resetModelForm();
+    } catch (error) {
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo guardar el modelo.'));
+    }
   }
 
   async function handleDeleteModel(model: GarmentModel) {
@@ -232,14 +257,44 @@ export default function GarmentModelsAdmin() {
     if (!confirmed) return;
 
     setDeletingModelId(model.id);
+    setErrorMessage(null);
     try {
-      await axios.delete(`/api/admin/garment-models/${model.id}`);
+      const response = await axios.delete(`/api/admin/garment-models/${model.id}`);
       if (editingModelId === model.id) {
         resetModelForm();
       }
+      setFeedbackMessage(response.data?.message || 'Modelo eliminado correctamente.');
       await fetchModels();
+    } catch (error) {
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo eliminar el modelo.'));
     } finally {
       setDeletingModelId(null);
+    }
+  }
+
+  async function handleDeleteColor(color: Color) {
+    const confirmed = window.confirm(`Eliminar el color "${color.name}"?`);
+    if (!confirmed) return;
+
+    setDeletingColorId(color.id);
+    setErrorMessage(null);
+    try {
+      const response = await axios.delete(`/api/admin/colors/${color.id}`);
+      setFeedbackMessage(response.data?.message || 'Color eliminado correctamente.');
+      setNewModel((current) => {
+        const colorIds = current.colorIds.filter((item) => item !== color.id);
+        return {
+          ...current,
+          colorIds,
+          colorMockups: ensureColorMockups(colorIds, current.colorMockups),
+        };
+      });
+      await fetchCatalog();
+      await fetchModels();
+    } catch (error) {
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo eliminar el color.'));
+    } finally {
+      setDeletingColorId(null);
     }
   }
 
@@ -249,6 +304,8 @@ export default function GarmentModelsAdmin() {
         <h1 className="text-2xl font-bold text-gray-900">Modelos base</h1>
         <p className="mt-1 text-gray-500">Administra prendas, talles, colores y mockups visibles en el storefront.</p>
       </div>
+      {feedbackMessage ? <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{feedbackMessage}</div> : null}
+      {errorMessage ? <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</div> : null}
 
       <div className="mb-8 grid gap-6 xl:grid-cols-3">
         <form onSubmit={handleCreateCategory} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -305,6 +362,19 @@ export default function GarmentModelsAdmin() {
           <button className="mt-4 rounded-xl bg-pink-600 px-5 py-3 font-medium text-white" type="submit">
             Guardar color
           </button>
+          {colors.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {colors.map((color) => (
+                <div key={color.id} className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                  <span className="h-3 w-3 rounded-full border border-black/10" style={{ backgroundColor: color.hex }} />
+                  <span>{color.name}</span>
+                  <button type="button" className="text-xs font-semibold text-rose-600 disabled:opacity-50" disabled={deletingColorId === color.id} onClick={() => void handleDeleteColor(color)}>
+                    {deletingColorId === color.id ? 'Eliminando...' : 'Eliminar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </form>
       </div>
 
