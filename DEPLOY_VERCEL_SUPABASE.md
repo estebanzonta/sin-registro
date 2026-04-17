@@ -70,6 +70,8 @@ IMGLY_API_KEY=
 Notas:
 - `VITE_API_URL` puede quedar vacio si frontend y backend viven en el mismo proyecto Vercel.
 - `CORS_ORIGIN` debe incluir tu dominio final de Vercel y cualquier dominio personalizado.
+- En produccion el backend ahora falla explicitamente si `CORS_ORIGIN` no esta definido.
+- En produccion `STORAGE_DRIVER=local` ya no esta permitido; debe quedar en `supabase`.
 
 ## 5. Crear proyecto en Vercel
 

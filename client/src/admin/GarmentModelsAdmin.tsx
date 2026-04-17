@@ -176,16 +176,28 @@ export default function GarmentModelsAdmin() {
 
   async function handleCreateCategory(event: React.FormEvent) {
     event.preventDefault();
-    await axios.post('/api/admin/garment-categories', { name: newCategoryName });
-    setNewCategoryName('');
-    await fetchCatalog();
+    setErrorMessage(null);
+    try {
+      await axios.post('/api/admin/garment-categories', { name: newCategoryName });
+      setNewCategoryName('');
+      setFeedbackMessage('Categoria creada correctamente.');
+      await fetchCatalog();
+    } catch (error) {
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo crear la categoria.'));
+    }
   }
 
   async function handleCreateSize(event: React.FormEvent) {
     event.preventDefault();
-    await axios.post('/api/admin/sizes', { name: newSizeName });
-    setNewSizeName('');
-    await fetchCatalog();
+    setErrorMessage(null);
+    try {
+      await axios.post('/api/admin/sizes', { name: newSizeName });
+      setNewSizeName('');
+      setFeedbackMessage('Talle creado correctamente.');
+      await fetchCatalog();
+    } catch (error) {
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo crear el talle.'));
+    }
   }
 
   async function handleCreateColor(event: React.FormEvent) {

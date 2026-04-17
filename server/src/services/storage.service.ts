@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { isProductionRuntime } from '../config/runtime-env.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 const serviceDir = path.dirname(fileURLToPath(import.meta.url));
@@ -68,6 +69,14 @@ export class StorageService {
 
     if (driver === 'supabase') {
       return uploadToSupabase(folder, filename, buffer, contentType);
+    }
+
+    if (driver !== 'local') {
+      throw new AppError(`STORAGE_DRIVER no soportado: ${driver}.`, 500);
+    }
+
+    if (isProductionRuntime()) {
+      throw new AppError('STORAGE_DRIVER=local no esta permitido en produccion. Configura STORAGE_DRIVER=supabase.', 500);
     }
 
     return uploadToLocal(folder, filename, buffer);
