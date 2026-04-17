@@ -34,6 +34,11 @@ export function registerAppRoutes(app: Express) {
   app.use('/api', createApiRouter());
 
   app.use((_req, res) => {
+    console.warn('[routes] not found', {
+      method: _req.method,
+      path: _req.path,
+      originalUrl: _req.originalUrl,
+    });
     res.status(404).json({
       error: 'Not found',
       statusCode: 404,
