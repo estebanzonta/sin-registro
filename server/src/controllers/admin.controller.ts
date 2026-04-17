@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { prisma } from '../db.js';
-import { StorageService } from '../services/storage.service.js';
+import { normalizeAssetUrl, StorageService } from '../services/storage.service.js';
 import { parseBlankStockPayload, parseBrandLogoPayload, parseCollectionPayload, parseDesignPayload, parseGarmentModelPayload, parseNamedEntityPayload, parsePrintAreaPayload, parseUploadAssetRequest, parseUploadTemplatePayload, parseUserRolePayload } from '../validation/admin-validation.js';
 
 function slugify(value: string) {
@@ -28,6 +28,23 @@ function parseImageDataUrl(dataUrl: string) {
   };
 }
 
+function normalizeGarmentModelAssets<T extends {
+  frontMockupUrl?: string | null;
+  backMockupUrl?: string | null;
+  colors?: Array<{ frontMockupUrl?: string | null; backMockupUrl?: string | null }>;
+}>(model: T) {
+  return {
+    ...model,
+    frontMockupUrl: normalizeAssetUrl(model.frontMockupUrl),
+    backMockupUrl: normalizeAssetUrl(model.backMockupUrl),
+    colors: model.colors?.map((item) => ({
+      ...item,
+      frontMockupUrl: normalizeAssetUrl(item.frontMockupUrl),
+      backMockupUrl: normalizeAssetUrl(item.backMockupUrl),
+    })),
+  };
+}
+
 export const getGarmentModels = asyncHandler(async (_req: Request, res: Response) => {
   const models = await prisma.garmentModel.findMany({
     include: {
@@ -37,7 +54,7 @@ export const getGarmentModels = asyncHandler(async (_req: Request, res: Response
       printAreas: { include: { placement: true } },
     },
   });
-  res.json(models);
+  res.json(models.map(normalizeGarmentModelAssets));
 });
 
 export const createGarmentModel = asyncHandler(async (req: Request, res: Response) => {
@@ -100,7 +117,7 @@ export const createGarmentModel = asyncHandler(async (req: Request, res: Respons
     });
   });
 
-  res.status(201).json(model);
+  res.status(201).json(normalizeGarmentModelAssets(model));
 });
 
 export const updateGarmentModel = asyncHandler(async (req: Request, res: Response) => {
@@ -190,7 +207,7 @@ export const updateGarmentModel = asyncHandler(async (req: Request, res: Respons
     });
   });
 
-  res.json(model);
+  res.json(normalizeGarmentModelAssets(model));
 });
 
 export const deleteGarmentModel = asyncHandler(async (req: Request, res: Response) => {
