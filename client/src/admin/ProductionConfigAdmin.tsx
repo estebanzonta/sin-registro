@@ -96,6 +96,8 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+const MAX_LOGO_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
 function buildEmptyLogoForm(logoPlacements: Placement[], colors: Color[]): LogoForm {
   return {
     name: '',
@@ -240,6 +242,10 @@ export default function ProductionConfigAdmin() {
     setUploadingLogo(true);
     setLogoError(null);
     try {
+      if (file.size > MAX_LOGO_FILE_SIZE_BYTES) {
+        throw new Error('El archivo es demasiado grande. El maximo permitido es 10 MB.');
+      }
+
       const dataUrl = await readFileAsDataUrl(file);
       const response = await axios.post('/api/admin/assets/upload', {
         folder: 'logos',
@@ -360,7 +366,7 @@ export default function ProductionConfigAdmin() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-gray-800">Logos de marca</h2>
-              <p className="mt-1 text-sm text-gray-500">Carga logos con medidas físicas, ubicaciones y colores permitidos.</p>
+              <p className="mt-1 text-sm text-gray-500">Carga logos con medidas físicas, ubicaciones y colores permitidos. Máximo sugerido: 10 MB.</p>
             </div>
             {editingLogoId ? (
               <button type="button" onClick={resetLogoForm} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
@@ -431,6 +437,7 @@ export default function ProductionConfigAdmin() {
                 />
               </label>
             </div>
+            <p className="mt-2 text-xs text-gray-500">Formatos permitidos: PNG, JPG y WEBP. Tamaño máximo: 10 MB.</p>
             {logoForm.imageUrl ? <img src={logoForm.imageUrl} alt="Preview logo" className="mt-3 h-32 w-32 rounded-xl border bg-white object-contain p-2" /> : null}
           </div>
 

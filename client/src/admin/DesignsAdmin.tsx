@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Image as ImageIcon, Layers3, Pencil, Plus, X } from 'lucide-react';
+import { readFriendlyApiError } from '../lib/apiErrors';
 
 type DesignCategory = {
   id: string;
@@ -135,6 +136,7 @@ export default function DesignsAdmin() {
   const [newCategory, setNewCategory] = useState(EMPTY_CATEGORY);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [deletingDesignId, setDeletingDesignId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -312,6 +314,26 @@ export default function DesignsAdmin() {
     }
   }
 
+  async function handleDeleteDesign(design: DesignRecord) {
+    const confirmed = window.confirm(`Eliminar el diseño "${design.name}"?`);
+    if (!confirmed) return;
+
+    setDeletingDesignId(design.id);
+    setSaveError(null);
+
+    try {
+      await axios.delete(`/api/admin/designs/${design.id}`);
+      if (editingDesignId === design.id) {
+        resetForm(designCategories[0]?.id || '');
+      }
+      await loadData();
+    } catch (error) {
+      setSaveError(readFriendlyApiError(error, 'No se pudo eliminar el diseño.'));
+    } finally {
+      setDeletingDesignId(null);
+    }
+  }
+
   return (
     <div className="animate-in fade-in duration-500">
       <div className="mb-8">
@@ -463,13 +485,13 @@ export default function DesignsAdmin() {
             </div>
             <div className="space-y-3">
               {form.transferSizes.map((item, index) => (
-                <div key={`${item.sizeCode}-${index}`} className="grid gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 md:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
-                  <input className="rounded-xl border border-gray-200 bg-white p-3" placeholder="Código" value={item.sizeCode} onChange={(event) => updateTransferSize(index, 'sizeCode', event.target.value)} />
-                  <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.1" placeholder="Ancho cm" value={item.widthCm} onChange={(event) => updateTransferSize(index, 'widthCm', event.target.value)} />
-                  <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.1" placeholder="Alto cm" value={item.heightCm} onChange={(event) => updateTransferSize(index, 'heightCm', event.target.value)} />
-                  <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" placeholder="Stock" value={item.stock} onChange={(event) => updateTransferSize(index, 'stock', event.target.value)} />
-                  <input className="rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.01" placeholder="Extra $" value={item.extraPrice} onChange={(event) => updateTransferSize(index, 'extraPrice', event.target.value)} />
-                  <button type="button" onClick={() => removeTransferSize(index)} className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600">
+                <div key={`${item.sizeCode}-${index}`} className="grid gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-[minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,0.8fr)_minmax(110px,0.9fr)_auto]">
+                  <input className="min-w-0 rounded-xl border border-gray-200 bg-white p-3" placeholder="Código" value={item.sizeCode} onChange={(event) => updateTransferSize(index, 'sizeCode', event.target.value)} />
+                  <input className="min-w-0 rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.1" placeholder="Ancho cm" value={item.widthCm} onChange={(event) => updateTransferSize(index, 'widthCm', event.target.value)} />
+                  <input className="min-w-0 rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.1" placeholder="Alto cm" value={item.heightCm} onChange={(event) => updateTransferSize(index, 'heightCm', event.target.value)} />
+                  <input className="min-w-0 rounded-xl border border-gray-200 bg-white p-3" type="number" placeholder="Stock" value={item.stock} onChange={(event) => updateTransferSize(index, 'stock', event.target.value)} />
+                  <input className="min-w-0 rounded-xl border border-gray-200 bg-white p-3" type="number" step="0.01" placeholder="Extra $" value={item.extraPrice} onChange={(event) => updateTransferSize(index, 'extraPrice', event.target.value)} />
+                  <button type="button" onClick={() => removeTransferSize(index)} className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600 md:col-span-2 xl:col-span-1">
                     Quitar
                   </button>
                 </div>
@@ -520,9 +542,19 @@ export default function DesignsAdmin() {
                     {(design.transferSizes || []).map((item) => `${item.sizeCode}: ${item.stock}`).join(' · ')}
                   </p>
                   <div className="mt-4 flex justify-end">
-                    <button type="button" onClick={() => startEditing(design)} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
-                      <Pencil size={16} /> Editar
-                    </button>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => startEditing(design)} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
+                        <Pencil size={16} /> Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteDesign(design)}
+                        disabled={deletingDesignId === design.id}
+                        className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-4 py-2 text-sm font-medium text-rose-700 disabled:opacity-50"
+                      >
+                        <X size={16} /> {deletingDesignId === design.id ? 'Eliminando...' : 'Eliminar'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

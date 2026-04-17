@@ -469,8 +469,18 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
 export const deleteDesign = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  await prisma.design.delete({
-    where: { id },
+  await prisma.$transaction(async (tx) => {
+    await tx.designPlacement.deleteMany({
+      where: { designId: id },
+    });
+
+    await tx.designTransferSize.deleteMany({
+      where: { designId: id },
+    });
+
+    await tx.design.delete({
+      where: { id },
+    });
   });
 
   res.json({ message: 'Diseño eliminado.' });
