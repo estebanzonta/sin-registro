@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+ï»¿import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Settings } from 'lucide-react';
+import { readFriendlyApiError } from '../lib/apiErrors';
 
 type Placement = {
   id: string;
@@ -121,6 +122,8 @@ export default function ProductionConfigAdmin() {
   const [editingLogoId, setEditingLogoId] = useState<string | null>(null);
   const [deletingLogoId, setDeletingLogoId] = useState<string | null>(null);
   const [logoForm, setLogoForm] = useState<LogoForm>(buildEmptyLogoForm([], []));
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoFeedback, setLogoFeedback] = useState<string | null>(null);
 
   const printPlacements = useMemo(
     () => placements.filter((item) => item.kind === 'print' && (item.code === 'FRONT' || item.code === 'BACK')),
@@ -235,6 +238,7 @@ export default function ProductionConfigAdmin() {
 
   async function uploadLogoFile(file: File) {
     setUploadingLogo(true);
+    setLogoError(null);
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const response = await axios.post('/api/admin/assets/upload', {
@@ -243,6 +247,9 @@ export default function ProductionConfigAdmin() {
         dataUrl,
       });
       setLogoForm((current) => ({ ...current, imageUrl: response.data.url }));
+      setLogoFeedback('Logo subido correctamente.');
+    } catch (error) {
+      setLogoError(readFriendlyApiError(error, 'No se pudo subir el logo.'));
     } finally {
       setUploadingLogo(false);
     }
@@ -251,6 +258,7 @@ export default function ProductionConfigAdmin() {
   async function submitLogo(event: React.FormEvent) {
     event.preventDefault();
     setSavingLogo(true);
+    setLogoError(null);
     try {
       const payload = {
         name: logoForm.name,
@@ -265,12 +273,16 @@ export default function ProductionConfigAdmin() {
 
       if (editingLogoId) {
         await axios.patch(`/api/admin/brand-logos/${editingLogoId}`, payload);
+        setLogoFeedback('Logo actualizado correctamente.');
       } else {
         await axios.post('/api/admin/brand-logos', payload);
+        setLogoFeedback('Logo creado correctamente.');
       }
 
       resetLogoForm();
       await loadData();
+    } catch (error) {
+      setLogoError(readFriendlyApiError(error, 'No se pudo guardar el logo.'));
     } finally {
       setSavingLogo(false);
     }
@@ -279,6 +291,7 @@ export default function ProductionConfigAdmin() {
   function resetLogoForm() {
     setEditingLogoId(null);
     setLogoForm(buildEmptyLogoForm(logoPlacements, colors));
+    setLogoError(null);
   }
 
   function startEditingLogo(logo: BrandLogo) {
@@ -310,8 +323,8 @@ export default function ProductionConfigAdmin() {
   return (
     <div className="animate-in fade-in duration-500">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Producción</h1>
-        <p className="mt-1 text-gray-500">Configura placements, áreas imprimibles y logos disponibles para producción.</p>
+        <h1 className="text-2xl font-bold text-gray-900">ProducciÃ³n</h1>
+        <p className="mt-1 text-gray-500">Configura placements, Ã¡reas imprimibles y logos disponibles para producciÃ³n.</p>
       </div>
 
       <div className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -322,12 +335,12 @@ export default function ProductionConfigAdmin() {
             </h2>
             <p className="mt-1 text-sm text-gray-500">
               {printPlacements.length
-                ? `Hay ${printPlacements.length} placements de impresión disponibles.`
-                : 'No hay placements de impresión cargados todavía.'}
+                ? `Hay ${printPlacements.length} placements de impresiÃ³n disponibles.`
+                : 'No hay placements de impresiÃ³n cargados todavÃ­a.'}
             </p>
           </div>
           <button onClick={() => void bootstrapPlacements()} disabled={bootstrapping} className="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white disabled:opacity-50">
-            {bootstrapping ? 'Inicializando...' : 'Inicializar placements estándar'}
+            {bootstrapping ? 'Inicializando...' : 'Inicializar placements estÃ¡ndar'}
           </button>
         </div>
 
@@ -335,7 +348,7 @@ export default function ProductionConfigAdmin() {
           <div className="mt-4 flex flex-wrap gap-2">
             {placements.map((placement) => (
               <span key={placement.id} className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                {placement.code} · {placement.name}
+                {placement.code} Â· {placement.name}
               </span>
             ))}
           </div>
@@ -347,7 +360,7 @@ export default function ProductionConfigAdmin() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-gray-800">Logos de marca</h2>
-              <p className="mt-1 text-sm text-gray-500">Carga logos con medidas físicas, ubicaciones y colores permitidos.</p>
+              <p className="mt-1 text-sm text-gray-500">Carga logos con medidas fÃ­sicas, ubicaciones y colores permitidos.</p>
             </div>
             {editingLogoId ? (
               <button type="button" onClick={resetLogoForm} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
@@ -366,7 +379,7 @@ export default function ProductionConfigAdmin() {
             />
             <input
               className="rounded-xl border border-gray-200 bg-gray-50 p-3 uppercase"
-              placeholder="Código"
+              placeholder="CÃ³digo"
               value={logoForm.code}
               onChange={(event) => setLogoForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
               required
@@ -391,6 +404,9 @@ export default function ProductionConfigAdmin() {
             />
           </div>
 
+          {logoFeedback ? <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{logoFeedback}</div> : null}
+          {logoError ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{logoError}</div> : null}
+
           <div className="mt-4">
             <label className="mb-1 block text-sm font-medium text-gray-700">Archivo del logo</label>
             <div className="flex gap-2">
@@ -409,11 +425,13 @@ export default function ProductionConfigAdmin() {
                   className="hidden"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
+                    event.currentTarget.value = '';
                     if (file) void uploadLogoFile(file);
                   }}
                 />
               </label>
             </div>
+            {logoForm.imageUrl ? <img src={logoForm.imageUrl} alt="Preview logo" className="mt-3 h-32 w-32 rounded-xl border bg-white object-contain p-2" /> : null}
           </div>
 
           <div className="mt-4">
@@ -508,7 +526,7 @@ export default function ProductionConfigAdmin() {
                 </div>
               </article>
             ))}
-            {!brandLogos.length ? <p className="text-sm text-gray-500">Todavía no hay logos cargados.</p> : null}
+            {!brandLogos.length ? <p className="text-sm text-gray-500">TodavÃ­a no hay logos cargados.</p> : null}
           </div>
         </div>
       </div>
@@ -525,7 +543,7 @@ export default function ProductionConfigAdmin() {
 
             {!printPlacements.length ? (
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Primero inicializa los placements estándar para poder configurar áreas de impresión.
+                Primero inicializa los placements estÃ¡ndar para poder configurar Ã¡reas de impresiÃ³n.
               </p>
             ) : (
               <div className="grid gap-4 xl:grid-cols-2">
@@ -558,7 +576,7 @@ export default function ProductionConfigAdmin() {
 
                       <div className="mt-4 flex justify-end">
                         <button type="button" onClick={() => void savePrintArea(model.id, placement.code)} disabled={savingKey === key} className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-                          {savingKey === key ? 'Guardando...' : 'Guardar área'}
+                          {savingKey === key ? 'Guardando...' : 'Guardar Ã¡rea'}
                         </button>
                       </div>
                     </div>
@@ -572,4 +590,5 @@ export default function ProductionConfigAdmin() {
     </div>
   );
 }
+
 

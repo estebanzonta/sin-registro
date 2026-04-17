@@ -445,9 +445,12 @@ export default function GarmentModelsAdmin() {
               />
               <label className="cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700">
                 {uploadingField === 'frontMockupUrl' ? 'Subiendo...' : 'Subir'}
-                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadMockup(file, 'frontMockupUrl'); }} />
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void uploadMockup(file, 'frontMockupUrl'); }} />
               </label>
             </div>
+            {newModel.frontMockupUrl ? (
+              <img src={newModel.frontMockupUrl} alt="Preview mockup frente" className="mt-3 h-32 w-full rounded-xl border bg-white object-contain" />
+            ) : null}
           </div>
 
           <div>
@@ -460,9 +463,12 @@ export default function GarmentModelsAdmin() {
               />
               <label className="cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700">
                 {uploadingField === 'backMockupUrl' ? 'Subiendo...' : 'Subir'}
-                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadMockup(file, 'backMockupUrl'); }} />
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void uploadMockup(file, 'backMockupUrl'); }} />
               </label>
             </div>
+            {newModel.backMockupUrl ? (
+              <img src={newModel.backMockupUrl} alt="Preview mockup espalda" className="mt-3 h-32 w-full rounded-xl border bg-white object-contain" />
+            ) : null}
           </div>
 
           <div className="md:col-span-2 grid gap-5 lg:grid-cols-2">
@@ -544,9 +550,10 @@ export default function GarmentModelsAdmin() {
                             />
                             <label className="cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700">
                               {uploadingField === 'frontMockupUrl' ? 'Subiendo...' : 'Subir'}
-                              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadColorMockup(file, mockup.colorId, 'frontMockupUrl'); }} />
+                              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void uploadColorMockup(file, mockup.colorId, 'frontMockupUrl'); }} />
                             </label>
                           </div>
+                          {mockup.frontMockupUrl ? <img src={mockup.frontMockupUrl} alt={`Preview frente ${color?.name || mockup.colorId}`} className="mt-3 h-28 w-full rounded-xl border bg-white object-contain" /> : null}
                         </div>
                         <div>
                           <label className="mb-1 block text-sm font-medium text-gray-700">Espalda</label>
@@ -563,9 +570,10 @@ export default function GarmentModelsAdmin() {
                             />
                             <label className="cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700">
                               {uploadingField === 'backMockupUrl' ? 'Subiendo...' : 'Subir'}
-                              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadColorMockup(file, mockup.colorId, 'backMockupUrl'); }} />
+                              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void uploadColorMockup(file, mockup.colorId, 'backMockupUrl'); }} />
                             </label>
                           </div>
+                          {mockup.backMockupUrl ? <img src={mockup.backMockupUrl} alt={`Preview espalda ${color?.name || mockup.colorId}`} className="mt-3 h-28 w-full rounded-xl border bg-white object-contain" /> : null}
                         </div>
                       </div>
                     </div>
