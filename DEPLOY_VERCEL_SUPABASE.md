@@ -2,7 +2,7 @@
 
 Este proyecto ya tiene:
 - frontend Vite listo para build
-- backend expuesto para Vercel Functions en `api/[...route].ts`
+- backend expuesto para Vercel Functions en `api/[...route].ts` y wrappers por segmento en `api/*/[...route].ts`
 - Prisma configurado para PostgreSQL
 - soporte para Supabase Storage en produccion
 
@@ -79,7 +79,7 @@ Notas:
 4. Vercel va a usar:
    - `vercel.json`
    - `client/dist` como output
-   - `api/[...route].ts` como backend
+   - `api/` como superficie de funciones
 
 ## 6. Primer deploy
 
