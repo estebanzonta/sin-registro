@@ -11,3 +11,30 @@ export function readCommaSeparatedEnv(name: string) {
     .map((value) => value.trim())
     .filter(Boolean);
 }
+
+function normalizeOrigin(value: string | undefined) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+export function resolveCorsOrigins() {
+  const configuredOrigins = readCommaSeparatedEnv('CORS_ORIGIN');
+  if (configuredOrigins.length > 0) {
+    return configuredOrigins;
+  }
+
+  const fallbackOrigins = [
+    normalizeOrigin(process.env.VERCEL_PROJECT_PRODUCTION_URL),
+    normalizeOrigin(process.env.VERCEL_URL),
+    normalizeOrigin(process.env.URL),
+  ].filter((value): value is string => Boolean(value));
+
+  if (fallbackOrigins.length > 0) {
+    return Array.from(new Set(fallbackOrigins));
+  }
+
+  return [];
+}
