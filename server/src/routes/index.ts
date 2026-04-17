@@ -5,7 +5,7 @@ import { configuratorRoutes } from './configurator.routes.js';
 import { adminRoutes } from './admin.routes.js';
 import { cartRoutes } from './cart.routes.js';
 import { orderRoutes } from './order.routes.js';
-import { getCatalogInit, getDesigns, getGarmentModel, getUploadedAsset } from '../controllers/catalog.controller.js';
+import { getUploadedAsset } from '../controllers/catalog.controller.js';
 
 export function createApiRouter() {
   const router = Router();
@@ -28,9 +28,6 @@ export function registerAppRoutes(app: Express) {
     res.json({ status: 'ok', timestamp: new Date() });
   });
   app.get('/api/assets/:folder/:filename', getUploadedAsset);
-  app.get('/api/catalog/init', getCatalogInit);
-  app.get('/api/catalog/designs', getDesigns);
-  app.get('/api/catalog/garment-models/:id', getGarmentModel);
 
   app.use('/api', createApiRouter());
 
