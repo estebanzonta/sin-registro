@@ -1,6 +1,8 @@
 import { createApp } from '../server/src/app.js';
 
 const app = createApp();
+const shouldLogRequests =
+  process.env.NODE_ENV !== 'production' || process.env.LOG_API_REQUESTS === 'true';
 
 export function handleRequest(req: any, res: any) {
   const originalUrl = typeof req.url === 'string' ? req.url : '';
@@ -10,14 +12,16 @@ export function handleRequest(req: any, res: any) {
   }
 
   const normalizedUrl = typeof req.url === 'string' ? req.url : originalUrl;
-  console.log('[api/_handler] incoming request', {
-    method: req.method,
-    originalUrl,
-    normalizedUrl,
-  });
+  if (shouldLogRequests) {
+    console.log('[api/_handler] incoming request', {
+      method: req.method,
+      originalUrl,
+      normalizedUrl,
+    });
+  }
 
   const originalJson = res.json?.bind(res);
-  if (originalJson) {
+  if (originalJson && shouldLogRequests) {
     res.json = (body: unknown) => {
       console.log('[api/_handler] json response', {
         method: req.method,
@@ -28,13 +32,15 @@ export function handleRequest(req: any, res: any) {
     };
   }
 
-  res.on?.('finish', () => {
-    console.log('[api/_handler] finished request', {
-      method: req.method,
-      normalizedUrl,
-      statusCode: res.statusCode,
+  if (shouldLogRequests) {
+    res.on?.('finish', () => {
+      console.log('[api/_handler] finished request', {
+        method: req.method,
+        normalizedUrl,
+        statusCode: res.statusCode,
+      });
     });
-  });
+  }
 
   return app(req, res);
 }

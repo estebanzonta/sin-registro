@@ -21,6 +21,17 @@ function toAppAssetUrl(folder: string, filename: string) {
   return `/api/assets/${folder}/${filename}`;
 }
 
+function toSupabasePublicUrl(folder: string, filename: string) {
+  const supabaseUrl = normalizeSupabaseUrl(process.env.SUPABASE_URL);
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET || '';
+
+  if (!supabaseUrl || !bucket) {
+    return toAppAssetUrl(folder, filename);
+  }
+
+  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${folder}/${filename}`;
+}
+
 function normalizeSupabaseUrl(value?: string | null) {
   return value ? value.replace(/\/+$/, '') : '';
 }
@@ -164,12 +175,21 @@ export function normalizeAssetUrl(value?: string | null) {
 
   const localMatch = value.match(/^\/uploads\/([^/]+)\/([^/]+)$/i);
   if (localMatch) {
-    return toAppAssetUrl(localMatch[1], localMatch[2]);
+    return process.env.STORAGE_DRIVER?.toLowerCase() === 'supabase'
+      ? toSupabasePublicUrl(localMatch[1], localMatch[2])
+      : toAppAssetUrl(localMatch[1], localMatch[2]);
+  }
+
+  const proxiedAssetMatch = value.match(/^\/api\/assets\/([^/]+)\/([^/]+)$/i);
+  if (proxiedAssetMatch) {
+    return process.env.STORAGE_DRIVER?.toLowerCase() === 'supabase'
+      ? toSupabasePublicUrl(proxiedAssetMatch[1], proxiedAssetMatch[2])
+      : value;
   }
 
   const supabaseMatch = value.match(/\/storage\/v1\/object\/public\/[^/]+\/([^/]+)\/([^/?#]+)(?:[?#].*)?$/i);
   if (supabaseMatch) {
-    return toAppAssetUrl(supabaseMatch[1], supabaseMatch[2]);
+    return toSupabasePublicUrl(supabaseMatch[1], supabaseMatch[2]);
   }
 
   return value;

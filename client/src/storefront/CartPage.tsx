@@ -4,6 +4,7 @@ import axios from 'axios';
 import type { AppSession } from '../App';
 import StorefrontTopBar from './StorefrontTopBar';
 import { isAuthError, readFriendlyApiError } from '../lib/apiErrors';
+import { getCatalogInit } from '../lib/catalogCache';
 
 type CartItem = {
   id: string;
@@ -114,10 +115,10 @@ export default function CartPage({
     }
 
     setLoading(true);
-    Promise.all([axios.get<CartResponse>('/api/cart'), axios.get<Catalog>('/api/catalog/init')])
-      .then(([cartResponse, catalogResponse]) => {
+    Promise.all([axios.get<CartResponse>('/api/cart'), getCatalogInit<Catalog>()])
+      .then(([cartResponse, catalogData]) => {
         setCart(cartResponse.data);
-        setCatalog(catalogResponse.data);
+        setCatalog(catalogData);
         onCartCountChange(cartResponse.data.totalItems || 0);
       })
       .catch((requestError) => {

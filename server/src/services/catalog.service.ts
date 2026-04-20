@@ -1,6 +1,15 @@
 import { prisma } from '../db.js';
 import { normalizeAssetUrl } from './storage.service.js';
 import type { CatalogInitResponse } from '../types/index.js';
+import { logTiming, nowMs } from '../utils/timing.js';
+
+const CATALOG_CACHE_TTL_MS = 60 * 1000;
+
+let catalogInitCache: {
+  value: CatalogInitResponse;
+  expiresAt: number;
+} | null = null;
+let catalogInitInFlight: Promise<CatalogInitResponse> | null = null;
 
 export class CatalogService {
   private normalizeGarmentModel<T extends {
@@ -39,6 +48,54 @@ export class CatalogService {
   }
 
   async getCatalogInit(): Promise<CatalogInitResponse> {
+    const startedAt = nowMs();
+    const now = Date.now();
+
+    if (catalogInitCache && catalogInitCache.expiresAt > now) {
+      const totalMs = nowMs() - startedAt;
+      logTiming('catalog.init', [
+        { label: 'cache-hit', durationMs: totalMs },
+        { label: 'total', durationMs: totalMs },
+      ], { source: 'memory-cache' });
+      return catalogInitCache.value;
+    }
+
+    if (catalogInitInFlight) {
+      const result = await catalogInitInFlight;
+      const totalMs = nowMs() - startedAt;
+      logTiming('catalog.init', [
+        { label: 'await-inflight', durationMs: totalMs },
+        { label: 'total', durationMs: totalMs },
+      ], { source: 'shared-promise' });
+      return result;
+    }
+
+    catalogInitInFlight = this.loadCatalogInit();
+
+    try {
+      const result = await catalogInitInFlight;
+      const totalMs = nowMs() - startedAt;
+      catalogInitCache = {
+        value: result,
+        expiresAt: Date.now() + CATALOG_CACHE_TTL_MS,
+      };
+      logTiming('catalog.init', [
+        { label: 'load', durationMs: totalMs },
+        { label: 'total', durationMs: totalMs },
+      ], { source: 'database' });
+      return result;
+    } finally {
+      catalogInitInFlight = null;
+    }
+  }
+
+  invalidateCatalogInitCache() {
+    catalogInitCache = null;
+    catalogInitInFlight = null;
+  }
+
+  private async loadCatalogInit(): Promise<CatalogInitResponse> {
+    const queryStartedAt = nowMs();
     const [categories, colors, sizes, placements, designCategories, collections, fixedDesigns, uploadTemplates, brandLogos] = await Promise.all([
       prisma.category.findMany({
         include: {
@@ -107,7 +164,9 @@ export class CatalogService {
         orderBy: [{ name: 'asc' }],
       }),
     ]);
+    const queryMs = nowMs() - queryStartedAt;
 
+    const transformStartedAt = nowMs();
     const visibleCollections = collections
       .filter((collection) => this.isCollectionAvailable(collection))
       .map((collection) => ({
@@ -129,8 +188,9 @@ export class CatalogService {
             },
           ]
         : [];
+    const transformMs = nowMs() - transformStartedAt;
 
-    return {
+    const response = {
       categories: categories.map((category) => ({
         ...category,
         garmentModels: category.garmentModels.map((model) => this.normalizeGarmentModel(model)),
@@ -143,6 +203,19 @@ export class CatalogService {
       uploadTemplates,
       brandLogos,
     };
+
+    logTiming('catalog.init.load', [
+      { label: 'queries', durationMs: queryMs },
+      { label: 'transform', durationMs: transformMs },
+      { label: 'total', durationMs: queryMs + transformMs },
+    ], {
+      categoryCount: response.categories.length,
+      collectionCount: response.collections.length,
+      uploadTemplateCount: response.uploadTemplates.length,
+      brandLogoCount: response.brandLogos.length,
+    });
+
+    return response;
   }
 
   async getDesigns() {

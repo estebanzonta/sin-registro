@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Image as ImageIcon, Layers3, Pencil, Plus, X } from 'lucide-react';
 import { readFriendlyApiError } from '../lib/apiErrors';
+import { getCatalogInit, invalidateCatalogCache } from '../lib/catalogCache';
 
 type DesignCategory = {
   id: string;
@@ -158,15 +159,18 @@ export default function DesignsAdmin() {
     const [designsResponse, collectionsResponse, catalogResponse] = await Promise.all([
       axios.get('/api/admin/designs'),
       axios.get('/api/admin/collections'),
-      axios.get('/api/catalog/init'),
+      getCatalogInit<{
+        designCategories?: DesignCategory[];
+        placements?: Placement[];
+      }>({ force: true }),
     ]);
 
-    const nextCategories = catalogResponse.data.designCategories || [];
+    const nextCategories = catalogResponse.designCategories || [];
 
     setDesigns(designsResponse.data || []);
     setCollections(collectionsResponse.data || []);
     setDesignCategories(nextCategories);
-    setPlacements(catalogResponse.data.placements || []);
+    setPlacements(catalogResponse.placements || []);
     setForm((current) => {
       if (editingDesignId) {
         return current;
@@ -254,6 +258,7 @@ export default function DesignsAdmin() {
       startsAt: newCollection.startsAt || undefined,
       endsAt: newCollection.endsAt || undefined,
     });
+    invalidateCatalogCache();
     setNewCollection(EMPTY_COLLECTION);
     await loadData();
   }
@@ -264,6 +269,7 @@ export default function DesignsAdmin() {
       name: newCategory.name,
       code: newCategory.code.toUpperCase(),
     });
+    invalidateCatalogCache();
     setNewCategory(EMPTY_CATEGORY);
     await loadData();
     if (!form.collectionId) {
@@ -300,6 +306,7 @@ export default function DesignsAdmin() {
         await axios.post('/api/admin/designs', payload);
       }
 
+      invalidateCatalogCache();
       await loadData();
       resetForm(designCategories[0]?.id || '');
     } catch (error) {
@@ -323,6 +330,7 @@ export default function DesignsAdmin() {
 
     try {
       await axios.delete(`/api/admin/designs/${design.id}`);
+      invalidateCatalogCache();
       if (editingDesignId === design.id) {
         resetForm(designCategories[0]?.id || '');
       }

@@ -1,5 +1,6 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { logTiming, nowMs } from '../utils/timing.js';
 import type {
   ConfiguratorRequest,
   ConfiguratorResponse,
@@ -30,6 +31,7 @@ export class ConfiguratorService {
   }
 
   async resolveConfiguration(config: ConfiguratorRequest): Promise<ConfiguratorResponse> {
+    const startedAt = nowMs();
     const {
       customizationMode,
       garmentModelId,
@@ -42,6 +44,7 @@ export class ConfiguratorService {
       transferSizeCode,
     } = config;
 
+    const baseQueriesStartedAt = nowMs();
     const model = await prisma.garmentModel.findUnique({
       where: { id: garmentModelId },
     });
@@ -82,6 +85,7 @@ export class ConfiguratorService {
       },
       orderBy: { code: 'asc' },
     }) as Placement[];
+    const baseQueriesMs = nowMs() - baseQueriesStartedAt;
 
     if (!logoPlacementCode) {
       throw new AppError('Debés seleccionar una ubicación para el logo.', 400);
@@ -97,12 +101,14 @@ export class ConfiguratorService {
     let availableTransferSizes: ResolvedTransferSize[] = [];
     let selectedTransferSize: ResolvedTransferSize | undefined;
     let baseCode = '';
+    let modeLookupMs = 0;
 
     if (customizationMode === 'brand_design') {
       if (!designId) {
         throw new AppError('Debés seleccionar un diseño de la marca.', 400);
       }
 
+      const modeLookupStartedAt = nowMs();
       const design = await prisma.design.findUnique({
         where: { id: designId },
         include: {
@@ -111,6 +117,7 @@ export class ConfiguratorService {
           placements: { include: { placement: true } },
         },
       });
+      modeLookupMs = nowMs() - modeLookupStartedAt;
 
       if (!design || !design.active) {
         throw new AppError('No encontramos el diseño seleccionado.', 404);
@@ -156,6 +163,7 @@ export class ConfiguratorService {
         throw new AppError('Debés seleccionar un tipo de personalización.', 400);
       }
 
+      const modeLookupStartedAt = nowMs();
       const template = await prisma.uploadTemplate.findUnique({
         where: { id: uploadTemplateId },
         include: {
@@ -163,6 +171,7 @@ export class ConfiguratorService {
           sizeOptions: { where: { active: true } },
         },
       });
+      modeLookupMs = nowMs() - modeLookupStartedAt;
 
       if (!template || !template.active) {
         throw new AppError('No encontramos la plantilla de personalización seleccionada.', 404);
@@ -192,8 +201,7 @@ export class ConfiguratorService {
 
     const basePrice = model.basePrice || 0;
     const totalPrice = basePrice + extraPrice;
-
-    return {
+    const result = {
       valid: blankStock.quantity > 0 && (transferStock === null || transferStock > 0),
       basePrice,
       extraPrice,
@@ -210,6 +218,19 @@ export class ConfiguratorService {
       },
       configurationCode: this.buildConfigurationCode(baseCode, logoPlacementCode),
     };
+
+    const totalMs = nowMs() - startedAt;
+    logTiming('configurator.resolve', [
+      { label: 'base-queries', durationMs: baseQueriesMs },
+      { label: 'mode-lookup', durationMs: modeLookupMs },
+      { label: 'total', durationMs: totalMs },
+    ], {
+      customizationMode,
+      printPlacementCode,
+      valid: result.valid,
+    });
+
+    return result;
   }
 }
 

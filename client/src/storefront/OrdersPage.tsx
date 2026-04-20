@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import type { AppSession } from '../App';
 import StorefrontTopBar from './StorefrontTopBar';
+import { getCatalogInit } from '../lib/catalogCache';
 
 type UploadedAsset = {
   id: string;
@@ -85,10 +86,10 @@ export default function OrdersPage({
       return;
     }
 
-    Promise.all([axios.get<OrdersResponse>('/api/orders/my-orders'), axios.get<Catalog>('/api/catalog/init')])
-      .then(([ordersResponse, catalogResponse]) => {
+    Promise.all([axios.get<OrdersResponse>('/api/orders/my-orders'), getCatalogInit<Catalog>()])
+      .then(([ordersResponse, catalogData]) => {
         setOrders(ordersResponse.data.orders || []);
-        setCatalog(catalogResponse.data);
+        setCatalog(catalogData);
       })
       .finally(() => setLoading(false));
   }, [session]);

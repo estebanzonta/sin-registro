@@ -2,6 +2,7 @@
 import axios from 'axios';
 import { Settings } from 'lucide-react';
 import { readFriendlyApiError } from '../lib/apiErrors';
+import { getCatalogInit, invalidateCatalogCache } from '../lib/catalogCache';
 
 type Placement = {
   id: string;
@@ -169,20 +170,21 @@ export default function ProductionConfigAdmin() {
       axios.get('/api/admin/print-areas'),
       axios.get('/api/admin/garment-models'),
       axios.get('/api/admin/brand-logos'),
-      axios.get('/api/catalog/init'),
+      getCatalogInit<{ colors?: Color[] }>({ force: true }),
     ]);
 
     setPlacements(placementsResponse.data || []);
     setPrintAreas(printAreasResponse.data || []);
     setModels(modelsResponse.data || []);
     setBrandLogos(logosResponse.data || []);
-    setColors(catalogResponse.data.colors || []);
+    setColors(catalogResponse.colors || []);
   }
 
   async function bootstrapPlacements() {
     setBootstrapping(true);
     try {
       await axios.post('/api/admin/placements/bootstrap');
+      invalidateCatalogCache();
       await loadData();
     } finally {
       setBootstrapping(false);
@@ -216,6 +218,7 @@ export default function ProductionConfigAdmin() {
         heightPct: Number(form.heightPct),
         active: form.active,
       });
+      invalidateCatalogCache();
       await loadData();
     } finally {
       setSavingKey(null);
@@ -285,6 +288,7 @@ export default function ProductionConfigAdmin() {
         setLogoFeedback('Logo creado correctamente.');
       }
 
+      invalidateCatalogCache();
       resetLogoForm();
       await loadData();
     } catch (error) {
@@ -317,6 +321,7 @@ export default function ProductionConfigAdmin() {
     setDeletingLogoId(id);
     try {
       await axios.delete(`/api/admin/brand-logos/${id}`);
+      invalidateCatalogCache();
       if (editingLogoId === id) {
         resetLogoForm();
       }

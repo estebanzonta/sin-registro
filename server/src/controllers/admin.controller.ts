@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { prisma } from '../db.js';
+import { catalogService } from '../services/catalog.service.js';
 import { normalizeAssetUrl, StorageService } from '../services/storage.service.js';
 import { parseBlankStockPayload, parseBrandLogoPayload, parseCollectionPayload, parseDesignPayload, parseGarmentModelPayload, parseNamedEntityPayload, parsePrintAreaPayload, parseUploadAssetRequest, parseUploadTemplatePayload, parseUserRolePayload } from '../validation/admin-validation.js';
 
@@ -43,6 +44,10 @@ function normalizeGarmentModelAssets<T extends {
       backMockupUrl: normalizeAssetUrl(item.backMockupUrl),
     })),
   };
+}
+
+function invalidateCatalogCache() {
+  catalogService.invalidateCatalogInitCache();
 }
 
 export const getGarmentModels = asyncHandler(async (_req: Request, res: Response) => {
@@ -117,6 +122,7 @@ export const createGarmentModel = asyncHandler(async (req: Request, res: Respons
     });
   });
 
+  invalidateCatalogCache();
   res.status(201).json(normalizeGarmentModelAssets(model));
 });
 
@@ -207,6 +213,7 @@ export const updateGarmentModel = asyncHandler(async (req: Request, res: Respons
     });
   });
 
+  invalidateCatalogCache();
   res.json(normalizeGarmentModelAssets(model));
 });
 
@@ -223,6 +230,7 @@ export const deleteGarmentModel = asyncHandler(async (req: Request, res: Respons
       data: { active: false },
     });
 
+    invalidateCatalogCache();
     res.json({
       ...model,
       message: 'El modelo tiene pedidos asociados. Se desactivó en lugar de eliminarse.',
@@ -251,6 +259,7 @@ export const deleteGarmentModel = asyncHandler(async (req: Request, res: Respons
     });
   });
 
+  invalidateCatalogCache();
   res.json({ message: 'Modelo de prenda eliminado.' });
 });
 
@@ -356,6 +365,7 @@ export const createDesign = asyncHandler(async (req: Request, res: Response) => 
     },
   });
 
+  invalidateCatalogCache();
   res.status(201).json(design);
 });
 
@@ -463,6 +473,7 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
     });
   });
 
+  invalidateCatalogCache();
   res.json(design);
 });
 
@@ -574,6 +585,7 @@ export const createGarmentCategory = asyncHandler(async (req: Request, res: Resp
     },
   });
 
+  invalidateCatalogCache();
   res.status(201).json(category);
 });
 
@@ -586,6 +598,7 @@ export const createSize = asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
+  invalidateCatalogCache();
   res.status(201).json(size);
 });
 
@@ -599,6 +612,7 @@ export const createColor = asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
+  invalidateCatalogCache();
   res.status(201).json(color);
 });
 
@@ -637,6 +651,7 @@ export const deleteColor = asyncHandler(async (req: Request, res: Response) => {
     where: { id },
   });
 
+  invalidateCatalogCache();
   res.json({ message: 'Color eliminado.' });
 });
 
@@ -651,6 +666,7 @@ export const createDesignCategory = asyncHandler(async (req: Request, res: Respo
     },
   });
 
+  invalidateCatalogCache();
   res.status(201).json(category);
 });
 
@@ -668,6 +684,7 @@ export const createCollection = asyncHandler(async (req: Request, res: Response)
     },
   });
 
+  invalidateCatalogCache();
   res.status(201).json(collection);
 });
 
@@ -786,6 +803,7 @@ export const createBrandLogo = asyncHandler(async (req: Request, res: Response) 
     },
   });
 
+  invalidateCatalogCache();
   res.status(201).json(logo);
 });
 
@@ -840,6 +858,7 @@ export const updateBrandLogo = asyncHandler(async (req: Request, res: Response) 
     });
   });
 
+  invalidateCatalogCache();
   res.json(logo);
 });
 
@@ -858,6 +877,7 @@ export const deleteBrandLogo = asyncHandler(async (req: Request, res: Response) 
     });
   });
 
+  invalidateCatalogCache();
   res.json({ message: 'Logo eliminado.' });
 });
 
@@ -889,6 +909,7 @@ export const bootstrapPlacements = asyncHandler(async (_req: Request, res: Respo
     orderBy: [{ kind: 'asc' }, { code: 'asc' }],
   });
 
+  invalidateCatalogCache();
   res.status(201).json(placements);
 });
 
@@ -947,6 +968,7 @@ export const createPrintArea = asyncHandler(async (req: Request, res: Response) 
     },
   });
 
+  invalidateCatalogCache();
   res.status(201).json(printArea);
 });
 
@@ -1019,6 +1041,7 @@ export const createUploadTemplate = asyncHandler(async (req: Request, res: Respo
     },
   });
 
+  invalidateCatalogCache();
   res.status(201).json(template);
 });
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Palette, Plus, Ruler, Shirt } from 'lucide-react';
 import { readFriendlyApiError } from '../lib/apiErrors';
+import { getCatalogInit, invalidateCatalogCache } from '../lib/catalogCache';
 
 type Category = {
   id: string;
@@ -117,10 +118,14 @@ export default function GarmentModelsAdmin() {
   }
 
   async function fetchCatalog() {
-    const response = await axios.get('/api/catalog/init');
-    const nextCategories = response.data.categories || [];
-    const nextSizes = response.data.sizes || [];
-    const nextColors = response.data.colors || [];
+    const catalog = await getCatalogInit<{
+      categories?: Category[];
+      sizes?: Size[];
+      colors?: Color[];
+    }>({ force: true });
+    const nextCategories = catalog.categories || [];
+    const nextSizes = catalog.sizes || [];
+    const nextColors = catalog.colors || [];
 
     setCategories(nextCategories);
     setSizes(nextSizes);
@@ -179,6 +184,7 @@ export default function GarmentModelsAdmin() {
     setErrorMessage(null);
     try {
       await axios.post('/api/admin/garment-categories', { name: newCategoryName });
+      invalidateCatalogCache();
       setNewCategoryName('');
       setFeedbackMessage('Categoria creada correctamente.');
       await fetchCatalog();
@@ -192,6 +198,7 @@ export default function GarmentModelsAdmin() {
     setErrorMessage(null);
     try {
       await axios.post('/api/admin/sizes', { name: newSizeName });
+      invalidateCatalogCache();
       setNewSizeName('');
       setFeedbackMessage('Talle creado correctamente.');
       await fetchCatalog();
@@ -205,6 +212,7 @@ export default function GarmentModelsAdmin() {
     setErrorMessage(null);
     try {
       await axios.post('/api/admin/colors', newColor);
+      invalidateCatalogCache();
       setNewColor({ name: '', hex: '#111111' });
       setFeedbackMessage('Color creado correctamente.');
       await fetchCatalog();
@@ -257,6 +265,7 @@ export default function GarmentModelsAdmin() {
         setFeedbackMessage('Modelo creado correctamente.');
       }
 
+      invalidateCatalogCache();
       await fetchModels();
       resetModelForm();
     } catch (error) {
@@ -272,6 +281,7 @@ export default function GarmentModelsAdmin() {
     setErrorMessage(null);
     try {
       const response = await axios.delete(`/api/admin/garment-models/${model.id}`);
+      invalidateCatalogCache();
       if (editingModelId === model.id) {
         resetModelForm();
       }
@@ -292,6 +302,7 @@ export default function GarmentModelsAdmin() {
     setErrorMessage(null);
     try {
       const response = await axios.delete(`/api/admin/colors/${color.id}`);
+      invalidateCatalogCache();
       setFeedbackMessage(response.data?.message || 'Color eliminado correctamente.');
       setNewModel((current) => {
         const colorIds = current.colorIds.filter((item) => item !== color.id);

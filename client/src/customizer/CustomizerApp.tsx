@@ -6,6 +6,7 @@ import logoAssetUrl from '../assets/Logo.svg';
 import type { AppSession } from '../App';
 import StorefrontTopBar from '../storefront/StorefrontTopBar';
 import { isAuthError, readFriendlyApiError } from '../lib/apiErrors';
+import { getCatalogInit } from '../lib/catalogCache';
 
 type Screen = 'category' | 'product' | 'mode' | 'selection' | 'customizer';
 type CustomMode = 'brand_design' | 'user_upload';
@@ -204,17 +205,17 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    axios.get<Catalog>('/api/catalog/init').then((response) => {
-      setInitData(response.data);
-      const firstModel = response.data.categories.flatMap((item) => item.garmentModels || [])[0];
+    getCatalogInit<Catalog>().then((data) => {
+      setInitData(data);
+      const firstModel = data.categories.flatMap((item) => item.garmentModels || [])[0];
       if (firstModel) {
         setSelectedProduct(firstModel);
         setSelectedSizeId(firstModel.sizes?.[0]?.sizeId || '');
         setSelectedColorId(firstModel.colors?.[0]?.colorId || '');
       }
-      const firstDesign = response.data.collections.flatMap((item) => item.designs || [])[0];
+      const firstDesign = data.collections.flatMap((item) => item.designs || [])[0];
       if (firstDesign) setSelectedDesignId(firstDesign.id);
-      const firstTemplate = response.data.uploadTemplates?.[0];
+      const firstTemplate = data.uploadTemplates?.[0];
       if (firstTemplate) {
         setSelectedTemplateId(firstTemplate.id);
         setSelectedUploadMode(firstTemplate.customizationType || 'photo_simple');
@@ -431,37 +432,52 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     ) {
       setPrice(0); setBasePrice(0); setTransferExtraPrice(0); setIsValid(false); setHasResolvedConfiguration(false); setStockValidationMessage(null); setConfigurationCode(''); return;
     }
-    axios.post<Config>('/api/configurator/resolve', {
-      customizationMode: customMode,
-      garmentModelId: selectedProduct.id,
-      sizeId: selectedSizeId,
-      colorId: selectedColorId,
-      printPlacementCode: selectedView === 'front' ? 'FRONT' : 'BACK',
-      logoPlacementCode,
-      designId: customMode === 'brand_design' ? selectedDesignId : undefined,
-      uploadTemplateId: customMode === 'user_upload' ? selectedTemplate?.id : undefined,
-      transferSizeCode: selectedTransferSizeCode,
-    }).then((response) => {
-      setPrice(response.data.price);
-      setBasePrice(response.data.basePrice || 0);
-      setTransferExtraPrice(response.data.extraPrice || 0);
-      setIsValid(response.data.valid);
-      setHasResolvedConfiguration(true);
-      setStockValidationMessage(response.data.valid ? null : 'No hay stock disponible para esta combinación.');
-      setConfigurationCode(response.data.configurationCode);
-      setAllowedLogoPlacements(response.data.allowedLogoPlacements || []);
-      if (!response.data.allowedLogoPlacements.some((item) => item.code === logoPlacementCode)) setLogoPlacementCode(response.data.allowedLogoPlacements[0]?.code || logoPlacementCode);
-    }).catch((error) => {
-      setPrice(selectedProduct.basePrice);
-      setBasePrice(selectedProduct.basePrice);
-      const fallbackSelectedSize = transferSizeOptions.find((item) => item.sizeCode === selectedTransferSizeCode);
-      setTransferExtraPrice(fallbackSelectedSize?.extraPrice || 0);
-      setIsValid(false);
-      setHasResolvedConfiguration(false);
-      setStockValidationMessage(readFriendlyApiError(error, 'No se pudo validar stock en este momento.'));
-      setConfigurationCode('');
-      setAllowedLogoPlacements([]);
-    });
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      axios.post<Config>('/api/configurator/resolve', {
+        customizationMode: customMode,
+        garmentModelId: selectedProduct.id,
+        sizeId: selectedSizeId,
+        colorId: selectedColorId,
+        printPlacementCode: selectedView === 'front' ? 'FRONT' : 'BACK',
+        logoPlacementCode,
+        designId: customMode === 'brand_design' ? selectedDesignId : undefined,
+        uploadTemplateId: customMode === 'user_upload' ? selectedTemplate?.id : undefined,
+        transferSizeCode: selectedTransferSizeCode,
+      }, {
+        signal: controller.signal,
+      }).then((response) => {
+        setPrice(response.data.price);
+        setBasePrice(response.data.basePrice || 0);
+        setTransferExtraPrice(response.data.extraPrice || 0);
+        setIsValid(response.data.valid);
+        setHasResolvedConfiguration(true);
+        setStockValidationMessage(response.data.valid ? null : 'No hay stock disponible para esta combinación.');
+        setConfigurationCode(response.data.configurationCode);
+        setAllowedLogoPlacements(response.data.allowedLogoPlacements || []);
+        if (!response.data.allowedLogoPlacements.some((item) => item.code === logoPlacementCode)) setLogoPlacementCode(response.data.allowedLogoPlacements[0]?.code || logoPlacementCode);
+      }).catch((error) => {
+        if (axios.isCancel(error) || (axios.isAxiosError(error) && error.code === 'ERR_CANCELED')) {
+          return;
+        }
+
+        setPrice(selectedProduct.basePrice);
+        setBasePrice(selectedProduct.basePrice);
+        const fallbackSelectedSize = transferSizeOptions.find((item) => item.sizeCode === selectedTransferSizeCode);
+        setTransferExtraPrice(fallbackSelectedSize?.extraPrice || 0);
+        setIsValid(false);
+        setHasResolvedConfiguration(false);
+        setStockValidationMessage(readFriendlyApiError(error, 'No se pudo validar stock en este momento.'));
+        setConfigurationCode('');
+        setAllowedLogoPlacements([]);
+      });
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions, visibleLogoOptions, productPrintPlacementCodes, selectedPlacementCode]);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {

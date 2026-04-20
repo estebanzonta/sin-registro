@@ -5,6 +5,7 @@ import { StorageService } from '../services/storage.service.js';
 
 export const getCatalogInit = asyncHandler(async (_req: Request, res: Response) => {
   const data = await getCatalogInitHandler();
+  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
   res.json(data);
 });
 

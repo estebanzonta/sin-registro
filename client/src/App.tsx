@@ -28,6 +28,7 @@ type SessionState = {
 
 const SESSION_KEY = 'sr-session';
 export type AppSession = SessionState;
+const SLOW_CLIENT_REQUEST_MS = 400;
 
 function readSession(): SessionState | null {
   try {
@@ -236,6 +237,56 @@ export default function App() {
   useEffect(() => {
     applyToken(session?.token || null);
   }, [session]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    const requestInterceptor = axios.interceptors.request.use((config) => {
+      (config as typeof config & { metadata?: { startedAt: number } }).metadata = {
+        startedAt: performance.now(),
+      };
+      return config;
+    });
+
+    const responseInterceptor = axios.interceptors.response.use(
+      (response) => {
+        const metadata = (response.config as typeof response.config & { metadata?: { startedAt: number } }).metadata;
+        if (metadata?.startedAt) {
+          const durationMs = performance.now() - metadata.startedAt;
+          if (durationMs >= SLOW_CLIENT_REQUEST_MS) {
+            console.log('[perf] client request', {
+              method: response.config.method,
+              url: response.config.url,
+              status: response.status,
+              durationMs: Math.round(durationMs * 10) / 10,
+            });
+          }
+        }
+        return response;
+      },
+      (error) => {
+        const config = error?.config as { method?: string; url?: string; metadata?: { startedAt: number } } | undefined;
+        if (config?.metadata?.startedAt) {
+          const durationMs = performance.now() - config.metadata.startedAt;
+          if (durationMs >= SLOW_CLIENT_REQUEST_MS) {
+            console.log('[perf] client request failed', {
+              method: config.method,
+              url: config.url,
+              durationMs: Math.round(durationMs * 10) / 10,
+            });
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

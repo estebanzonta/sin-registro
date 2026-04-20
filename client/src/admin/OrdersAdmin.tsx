@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { getCatalogInit } from '../lib/catalogCache';
 
 type UploadedAsset = {
   id: string;
@@ -74,10 +75,10 @@ export default function OrdersAdmin() {
   const [savingOrderId, setSavingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([axios.get<OrdersResponse>('/api/orders/admin/all'), axios.get<Catalog>('/api/catalog/init')])
-      .then(([ordersResponse, catalogResponse]) => {
+    Promise.all([axios.get<OrdersResponse>('/api/orders/admin/all'), getCatalogInit<Catalog>({ force: true })])
+      .then(([ordersResponse, catalogData]) => {
         setOrders(ordersResponse.data.orders || []);
-        setCatalog(catalogResponse.data);
+        setCatalog(catalogData);
       })
       .finally(() => setLoading(false));
   }, []);
