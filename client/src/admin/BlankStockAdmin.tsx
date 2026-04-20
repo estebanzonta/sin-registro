@@ -1,28 +1,41 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { PackageSearch, RefreshCw } from 'lucide-react';
+import { readFriendlyApiError } from '../lib/apiErrors';
 
 export default function BlankStockAdmin() {
   const [stock, setStock] = useState<any[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchStock();
   }, []);
 
   async function fetchStock() {
+    setErrorMessage(null);
     const response = await axios.get('/api/admin/blank-stock');
     setStock(response.data);
   }
 
   async function setQuantity(id: string, quantity: number) {
+    const nextQuantity = Math.max(0, quantity);
+    const previousStock = stock;
+    setErrorMessage(null);
     setSavingId(id);
+    setStock((current) => current.map((item) => (item.id === id ? { ...item, quantity: nextQuantity } : item)));
     try {
-      await axios.patch(`/api/admin/blank-stock/${id}`, { quantity: Math.max(0, quantity) });
-      setStock((current) => current.map((item) => (item.id === id ? { ...item, quantity: Math.max(0, quantity) } : item)));
+      await axios.patch(`/api/admin/blank-stock/${id}`, { quantity: nextQuantity });
+    } catch (error) {
+      setStock(previousStock);
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo actualizar el stock.'));
     } finally {
       setSavingId(null);
     }
+  }
+
+  function readQuantity(id: string) {
+    return stock.find((item) => item.id === id)?.quantity || 0;
   }
 
   return (
@@ -36,6 +49,7 @@ export default function BlankStockAdmin() {
           <RefreshCw size={16} /> Actualizar
         </button>
       </div>
+      {errorMessage ? <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</div> : null}
 
       <div className="space-y-3">
         {stock.map((item) => (
@@ -52,8 +66,8 @@ export default function BlankStockAdmin() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <button onClick={() => void setQuantity(item.id, item.quantity - 10)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">-10</button>
-                <button onClick={() => void setQuantity(item.id, item.quantity - 1)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">-1</button>
+                <button type="button" onClick={() => void setQuantity(item.id, readQuantity(item.id) - 10)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">-10</button>
+                <button type="button" onClick={() => void setQuantity(item.id, readQuantity(item.id) - 1)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">-1</button>
                 <input
                   type="number"
                   className="w-24 rounded-xl border border-gray-200 bg-gray-50 p-2 text-center text-lg font-bold"
@@ -64,8 +78,8 @@ export default function BlankStockAdmin() {
                   }}
                   onBlur={(event) => void setQuantity(item.id, Number(event.target.value || 0))}
                 />
-                <button onClick={() => void setQuantity(item.id, item.quantity + 1)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">+1</button>
-                <button onClick={() => void setQuantity(item.id, item.quantity + 10)} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">+10</button>
+                <button type="button" onClick={() => void setQuantity(item.id, readQuantity(item.id) + 1)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">+1</button>
+                <button type="button" onClick={() => void setQuantity(item.id, readQuantity(item.id) + 10)} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">+10</button>
                 {savingId === item.id ? <span className="text-xs text-gray-400">Guardando...</span> : null}
               </div>
             </div>
