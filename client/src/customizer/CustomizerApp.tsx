@@ -317,7 +317,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
           ? `Subí ${formatImageRequirement(requiredAssetCount)} para continuar.`
           : null;
   const customizerActionDisabled = Boolean(customizerDisabledReason);
-  const selectedModeLabel = customMode === 'brand_design' ? 'Diseño de la marca' : 'Personalizado';
+  const selectedModeLabel = customMode === 'brand_design' ? 'De la casa' : 'Modo creador';
   const selectedContentLabel = customMode === 'brand_design'
     ? (selectedDesign ? `${selectedDesign.code} · ${selectedDesign.name}` : 'Elegí una estampa')
     : selectedUploadMode === 'photo_simple'
@@ -797,7 +797,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
           <Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg text-black"><ShoppingCart /></Link>
         </header>
         <div className="mb-8 text-center relative z-10 mt-28">
-          <p className="opacity-80 text-base font-medium" style={{ fontFamily: 'var(--font-body)' }}>Elegí el contenido de la estampa</p>
+          <p className="opacity-80 text-base font-medium" style={{ fontFamily: 'var(--font-body)' }}>Elegí como queres vestirte hoy</p>
         </div>
         <div className="flex w-full max-w-2xl gap-8 relative z-10">
           <button
@@ -805,14 +805,14 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
             className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold"
             style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}
           >
-            DISEÑOS DE LA MARCA
+            DE LA CASA
           </button>
           <button
             onClick={() => { setCustomMode('user_upload'); setScreen('product'); }}
             className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold"
             style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}
           >
-            PERSONALIZADO
+            MODO CREADOR
           </button>
         </div>
       </section>
