@@ -483,8 +483,11 @@ export const deleteDesign = asyncHandler(async (req: Request, res: Response) => 
   const orderItemsCount = await prisma.orderItem.count({
     where: { designId: id },
   });
+  const cartItemsCount = await prisma.cartItem.count({
+    where: { designId: id },
+  });
 
-  if (orderItemsCount > 0) {
+  if (orderItemsCount > 0 || cartItemsCount > 0) {
     const design = await prisma.design.update({
       where: { id },
       data: { active: false },

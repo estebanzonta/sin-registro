@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { Image as ImageIcon, Layers3, Pencil, Plus, X } from 'lucide-react';
 import { readFriendlyApiError } from '../lib/apiErrors';
@@ -103,13 +103,64 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, '');
 }
 
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error(`No se pudo leer ${file.name}`));
-    reader.readAsDataURL(file);
+function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<string>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('No se pudo procesar la imagen.'));
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('No se pudo convertir la imagen procesada.'));
+      reader.readAsDataURL(blob);
+    }, 'image/webp', quality);
   });
+}
+
+async function optimizeDesignImage(file: File) {
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error(`No se pudo abrir ${file.name}`));
+      element.src = imageUrl;
+    });
+
+    const maxDimension = 1800;
+    const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+    const targetWidth = Math.max(1, Math.round(image.width * scale));
+    const targetHeight = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('No se pudo preparar la imagen.');
+    }
+
+    context.clearRect(0, 0, targetWidth, targetHeight);
+    context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    let dataUrl = '';
+    for (const quality of [0.86, 0.78, 0.7]) {
+      dataUrl = await canvasToDataUrl(canvas, quality);
+      if (dataUrl.length <= 4_000_000) {
+        break;
+      }
+    }
+
+    return {
+      dataUrl,
+      filename: `${slugify(file.name.replace(/\.[^.]+$/, '')) || `design-${Date.now()}`}.webp`,
+    };
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
 }
 
 function mapTransferSizes(items?: DesignRecord['transferSizes']): TransferSizeForm[] {
@@ -127,6 +178,7 @@ function mapTransferSizes(items?: DesignRecord['transferSizes']): TransferSizeFo
 }
 
 export default function DesignsAdmin() {
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const [designs, setDesigns] = useState<DesignRecord[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [designCategories, setDesignCategories] = useState<DesignCategory[]>([]);
@@ -219,6 +271,7 @@ export default function DesignsAdmin() {
   function startEditing(design: DesignRecord) {
     const capsuleCollection = design.collection?.type === 'capsule' ? design.collection : null;
 
+    setSaveError(null);
     setEditingDesignId(design.id);
     setForm({
       collectionId: capsuleCollection?.id || '',
@@ -232,16 +285,19 @@ export default function DesignsAdmin() {
       placementCodes: design.placements?.map((item) => item.placement.code) || ['FRONT'],
       transferSizes: mapTransferSizes(design.transferSizes),
     });
+    window.requestAnimationFrame(() => {
+      editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   async function uploadImage(file: File) {
     setUploadingImage(true);
     setSaveError(null);
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      const { dataUrl, filename } = await optimizeDesignImage(file);
       const response = await axios.post('/api/admin/assets/upload', {
         folder: 'designs',
-        filename: file.name,
+        filename,
         dataUrl,
       });
       setForm((current) => ({ ...current, imageUrl: response.data.url }));
@@ -381,7 +437,7 @@ export default function DesignsAdmin() {
         </form>
       </div>
 
-      <div className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+      <div ref={editorRef} className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center justify-between gap-4">
           <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800">
             <ImageIcon size={20} className="text-pink-500" /> {editingDesignId ? 'Editar diseño' : 'Nuevo diseño'}

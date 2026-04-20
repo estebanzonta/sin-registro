@@ -52,6 +52,12 @@ export const errorHandler = (
     }
   }
 
+  const expressError = err as Error & { type?: string; status?: number; statusCode?: number };
+  if (expressError.type === 'entity.too.large' || expressError.status === 413 || expressError.statusCode === 413) {
+    statusCode = 413;
+    message = 'El archivo es demasiado grande. Probá con una imagen más liviana.';
+  }
+
   const errorResponse: ErrorResponse = {
     error: err.name,
     message,
