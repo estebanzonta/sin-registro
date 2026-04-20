@@ -351,6 +351,9 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   const selectedBrandLogo = compatibleBrandLogos[0] || null;
   const maxTransferWidth = Math.max(...transferSizeOptions.map((item) => item.widthCm || 0), 1);
   const maxTransferHeight = Math.max(...transferSizeOptions.map((item) => item.heightCm || 0), 1);
+  const estimatedBasePrice = selectedProduct?.basePrice || 0;
+  const estimatedTransferExtraPrice = selectedTransferSize?.extraPrice || 0;
+  const estimatedTotalPrice = estimatedBasePrice + estimatedTransferExtraPrice;
   const printScaleStyle = selectedTransferSize
     ? {
         width: `${Math.max(20, (selectedTransferSize.widthCm / maxTransferWidth) * 92)}%`,
@@ -434,7 +437,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       !hasValidTransferSize ||
       !hasValidLogoPlacement
     ) {
-      setPrice(0); setBasePrice(0); setTransferExtraPrice(0); setIsValid(false); setHasResolvedConfiguration(false); setStockValidationMessage(null); setConfigurationCode(''); return;
+      setPrice(estimatedTotalPrice); setBasePrice(estimatedBasePrice); setTransferExtraPrice(estimatedTransferExtraPrice); setIsValid(false); setHasResolvedConfiguration(false); setStockValidationMessage(null); setConfigurationCode(''); return;
     }
 
     const controller = new AbortController();
@@ -466,10 +469,9 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
           return;
         }
 
-        setPrice(selectedProduct.basePrice);
-        setBasePrice(selectedProduct.basePrice);
-        const fallbackSelectedSize = transferSizeOptions.find((item) => item.sizeCode === selectedTransferSizeCode);
-        setTransferExtraPrice(fallbackSelectedSize?.extraPrice || 0);
+        setPrice(estimatedTotalPrice);
+        setBasePrice(estimatedBasePrice);
+        setTransferExtraPrice(estimatedTransferExtraPrice);
         setIsValid(false);
         setHasResolvedConfiguration(false);
         setStockValidationMessage(readFriendlyApiError(error, 'No se pudo validar stock en este momento.'));
@@ -482,7 +484,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions, allowedLogoOptions, productPrintPlacementCodes, selectedPlacementCode]);
+  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions, allowedLogoOptions, productPrintPlacementCodes, selectedPlacementCode, estimatedTotalPrice, estimatedBasePrice, estimatedTransferExtraPrice]);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
