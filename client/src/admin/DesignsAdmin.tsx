@@ -366,8 +366,8 @@ export default function DesignsAdmin() {
       }
 
       invalidateCatalogCache();
-      await loadData();
       resetForm(designCategories[0]?.id || '');
+      await loadData();
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const message = error.response?.data?.message || error.response?.data?.error;

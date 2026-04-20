@@ -8,7 +8,7 @@ import StorefrontTopBar from '../storefront/StorefrontTopBar';
 import { isAuthError, readFriendlyApiError } from '../lib/apiErrors';
 import { getCatalogInit } from '../lib/catalogCache';
 
-type Screen = 'category' | 'product' | 'mode' | 'selection' | 'customizer';
+type Screen = 'product' | 'mode' | 'selection' | 'customizer';
 type CustomMode = 'brand_design' | 'user_upload';
 type UploadMode = 'photo_simple' | 'photo_collage' | 'pets';
 type ProductSizeOption = { sizeId: string; size: { id: string; name: string } };
@@ -174,7 +174,7 @@ async function toAsset(file: File): Promise<UploadedAsset> {
 export default function CustomizerApp({ session, onCartCountChange, onSessionChange }: { session: AppSession | null; onCartCountChange: (count: number) => void; onSessionChange: (session: AppSession | null) => void }) {
   const navigate = useNavigate();
   const printAreaRef = useRef<HTMLDivElement | null>(null);
-  const [screen, setScreen] = useState<Screen>('category');
+  const [screen, setScreen] = useState<Screen>('mode');
   const [initData, setInitData] = useState<Catalog | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedSizeId, setSelectedSizeId] = useState('');
@@ -344,6 +344,10 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       })
     );
   }, [allowedLogoPlacements, selectedView, initData, selectedColorId]);
+  const allowedLogoOptions = useMemo(
+    () => (allowedLogoPlacements.length ? allowedLogoPlacements : [...FALLBACK_LOGO_OPTIONS[selectedView]]),
+    [allowedLogoPlacements, selectedView]
+  );
   const selectedBrandLogo = compatibleBrandLogos[0] || null;
   const maxTransferWidth = Math.max(...transferSizeOptions.map((item) => item.widthCm || 0), 1);
   const maxTransferHeight = Math.max(...transferSizeOptions.map((item) => item.heightCm || 0), 1);
@@ -417,7 +421,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
 
   useEffect(() => {
     const hasValidTransferSize = transferSizeOptions.length > 0 && transferSizeOptions.some((item) => item.sizeCode === selectedTransferSizeCode);
-    const hasValidLogoPlacement = visibleLogoOptions.length > 0 && visibleLogoOptions.some((item) => item.code === logoPlacementCode);
+    const hasValidLogoPlacement = allowedLogoOptions.length > 0 && allowedLogoOptions.some((item) => item.code === logoPlacementCode);
     const hasValidPrintPlacement = productPrintPlacementCodes.length > 0 && productPrintPlacementCodes.includes(selectedPlacementCode);
 
     if (
@@ -478,7 +482,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions, visibleLogoOptions, productPrintPlacementCodes, selectedPlacementCode]);
+  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions, allowedLogoOptions, productPrintPlacementCodes, selectedPlacementCode]);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
@@ -709,25 +713,10 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     );
   }
 
-  if (screen === 'category') {
-    return (
-      <section className="flex min-h-screen flex-col items-center justify-center bg-black p-8 text-white relative">
-        <div className="fixed top-[18%] left-1/2 -translate-x-1/2 opacity-70 pointer-events-none" style={{ width: '40vw' }}>
-          <img src={logoAssetUrl} alt="Logo" className="w-full h-auto mx-auto" />
-        </div>
-        <div className="mb-8 text-center relative z-10 mt-28"><p className="opacity-80 text-base font-medium" style={{ fontFamily: 'var(--font-body)' }}>Elegí qué querés personalizar hoy</p></div>
-        <div className="flex w-full max-w-2xl gap-8 relative z-10"><button onClick={() => setScreen('product')} className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold" style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}>INDUMENTARIA</button><button className="flex h-48 flex-1 cursor-not-allowed items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold opacity-40" style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}>ACCESORIOS</button></div>
-        <div className="absolute right-4 top-4">
-          <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} cartCount={cartCount} tone="dark" />
-        </div>
-      </section>
-    );
-  }
-
   if (screen === 'product') {
     return (
       <section className="relative flex h-screen flex-col overflow-hidden bg-black">
-        <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('category')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
+        <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('mode')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
         <div className="relative flex flex-1 items-center justify-center px-4 pb-[34vh] sm:px-8 lg:px-16">
           <button type="button" onClick={() => cycleProduct('prev')} disabled={products.length < 2} className="absolute left-4 top-1/2 z-30 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/95 text-gray-700 shadow-lg transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40 sm:left-6 lg:left-[10%] lg:h-16 lg:w-16">
             <ChevronLeft size={28} />
@@ -752,7 +741,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
               {(selectedProduct?.sizes || []).map((item) => <button key={item.sizeId} onClick={() => setSelectedSizeId(item.sizeId)} className={`min-w-12 rounded-2xl border px-4 py-3 text-sm font-bold uppercase tracking-[0.08em] transition ${selectedSizeId === item.sizeId ? 'border-[#111827] bg-[#111827] text-white' : 'border-gray-200 bg-white text-gray-800'}`} style={{ fontFamily: 'var(--font-body)' }}>{item.size.name}</button>)}
             </div>
           </div>
-          <button disabled={!selectedSizeId} onClick={() => setScreen('mode')} className="w-full rounded-2xl bg-[#111827] px-6 py-3.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:opacity-50" style={{ fontFamily: 'var(--font-heading)' }}>Continuar</button>
+          <button disabled={!selectedSizeId} onClick={() => setScreen('selection')} className="w-full rounded-2xl bg-[#111827] px-6 py-3.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:opacity-50" style={{ fontFamily: 'var(--font-heading)' }}>Continuar</button>
         </div>
         <aside className="absolute right-4 top-[45%] z-40 hidden -translate-y-1/2 md:flex lg:right-6">
           <div className="flex flex-col gap-3 rounded-[28px] border border-black/10 bg-white/92 p-3 shadow-xl backdrop-blur-md">
@@ -802,7 +791,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
           <img src={logoAssetUrl} alt="Logo" className="w-full h-auto mx-auto" />
         </div>
         <header className="absolute top-0 z-10 flex w-full justify-between p-6">
-          <button onClick={() => setScreen('product')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg text-black"><ChevronLeft /></button>
+          <div className="h-11 w-11" />
           <Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg text-black"><ShoppingCart /></Link>
         </header>
         <div className="mb-8 text-center relative z-10 mt-28">
@@ -810,14 +799,14 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
         </div>
         <div className="flex w-full max-w-2xl gap-8 relative z-10">
           <button
-            onClick={() => { setCustomMode('brand_design'); setScreen('selection'); }}
+            onClick={() => { setCustomMode('brand_design'); setScreen('product'); }}
             className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold"
             style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}
           >
             DISEÑOS DE LA MARCA
           </button>
           <button
-            onClick={() => { setCustomMode('user_upload'); setScreen('selection'); }}
+            onClick={() => { setCustomMode('user_upload'); setScreen('product'); }}
             className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold"
             style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}
           >
@@ -831,7 +820,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   if (screen === 'selection') {
     return (
       <section className="relative flex min-h-screen flex-col overflow-hidden bg-black">
-        <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('mode')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
+        <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('product')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
         <div className="flex flex-1 items-center justify-center px-4 pb-10 pt-28"><div className="w-full max-w-5xl rounded-lg bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.22)] lg:p-8"><h2 className="text-3xl font-extrabold text-[#111827]">{customMode === 'brand_design' ? 'Elegí el diseño de la marca' : 'Elegí tu contenido personalizado'}</h2><p className="mt-2 text-sm text-gray-500">{customMode === 'brand_design' ? 'Seleccioná la estampa que querés aplicar antes de pasar al mockup.' : 'Subí tus imágenes. El tamaño, la cara de la prenda, el color y el logo se eligen en la siguiente pantalla.'}</p>{customMode === 'brand_design' ? renderBrandDesignPicker() : <div className="mt-6 space-y-6"><div><div className="flex flex-wrap gap-4">{(['photo_simple', 'photo_collage', 'pets'] as UploadMode[]).map((mode) => <button key={mode} onClick={() => { setSelectedUploadMode(mode); setUploadedAssets([]); setUploadError(null); setCustomText(''); }} className={`px-2 py-1 text-sm font-bold uppercase transition-colors ${selectedUploadMode === mode ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`} style={{ fontFamily: 'var(--font-heading)' }}>{uploadModeLabel(mode)}</button>)}</div></div><div><h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">{selectedUploadMode === 'photo_simple' ? 'Foto' : 'Archivos'}</h3><label className="flex min-h-56 cursor-pointer items-center justify-center rounded-lg bg-gray-50 text-gray-400"><div className="text-center"><UploadCloud size={36} className="mx-auto" /><p className="mt-3 text-sm font-medium text-gray-700">{selectedUploadMode === 'photo_simple' ? 'Subí tu imagen' : 'Subí tus imágenes'}</p><p className="mt-1 text-xs text-gray-500">PNG, JPG o WEBP. Permitidas: {selectedUploadMode === 'photo_simple' ? '1' : formatCountList(uploadCountOptions)} imagen{selectedUploadMode === 'photo_simple' || uploadCountOptions.every((count) => count === 1) ? '' : 'es'}</p></div><input type="file" multiple={selectedUploadMode !== 'photo_simple'} className="hidden" onChange={handleFileUpload} /></label>{uploadError && <p className="mt-2 text-sm text-rose-600">{uploadError}</p>}{uploadedAssets.length ? <p className="mt-2 text-sm text-gray-600">{uploadedAssets.length} archivo(s) listo(s).</p> : null}{inputAllowsText ? <input className="mt-4 w-full rounded-xl bg-gray-50 p-3" value={customText} onChange={(event) => setCustomText(event.target.value)} placeholder={inputTextLabel} /> : null}</div></div>}<div className="mt-8 flex items-center justify-between gap-4 pt-6"><div className="text-sm text-gray-500">{customMode === 'brand_design' ? (selectedDesign ? `Seleccionado: ${selectedDesign.name}` : 'Elegí una estampa para continuar.') : selectedTemplate && hasRequiredUploads ? `Contenido listo: ${selectedContentLabel}` : `Subí ${selectedUploadMode === 'photo_simple' ? '1 imagen' : `${formatCountList(uploadCountOptions)} imágenes`} para continuar.`}</div><button disabled={(customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && (!selectedTemplate || !hasRequiredUploads))} onClick={() => setScreen('customizer')} className="rounded-md bg-[#111827] px-6 py-3 font-bold text-white disabled:opacity-50">Ir al mockup</button></div></div></div>
       </section>
     );
