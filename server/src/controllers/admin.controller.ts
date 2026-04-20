@@ -480,6 +480,24 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
 export const deleteDesign = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
+  const orderItemsCount = await prisma.orderItem.count({
+    where: { designId: id },
+  });
+
+  if (orderItemsCount > 0) {
+    const design = await prisma.design.update({
+      where: { id },
+      data: { active: false },
+    });
+
+    invalidateCatalogCache();
+    res.json({
+      ...design,
+      message: 'El diseño tiene pedidos asociados. Se desactivó en lugar de eliminarse.',
+    });
+    return;
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.designPlacement.deleteMany({
       where: { designId: id },
@@ -492,6 +510,8 @@ export const deleteDesign = asyncHandler(async (req: Request, res: Response) => 
     await tx.design.delete({
       where: { id },
     });
+
+    invalidateCatalogCache();
   });
 
   res.json({ message: 'Diseño eliminado.' });

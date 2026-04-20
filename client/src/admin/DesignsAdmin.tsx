@@ -236,6 +236,7 @@ export default function DesignsAdmin() {
 
   async function uploadImage(file: File) {
     setUploadingImage(true);
+    setSaveError(null);
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const response = await axios.post('/api/admin/assets/upload', {
@@ -244,6 +245,8 @@ export default function DesignsAdmin() {
         dataUrl,
       });
       setForm((current) => ({ ...current, imageUrl: response.data.url }));
+    } catch (error) {
+      setSaveError(readFriendlyApiError(error, 'No se pudo subir la imagen del diseño.'));
     } finally {
       setUploadingImage(false);
     }
@@ -456,7 +459,7 @@ export default function DesignsAdmin() {
               <input className="flex-1 rounded-xl border border-gray-200 bg-gray-50 p-3" placeholder="/uploads/designs/..." value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} required />
               <label className="cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700">
                 {uploadingImage ? 'Subiendo...' : 'Subir'}
-                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} />
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void uploadImage(file); }} />
               </label>
             </div>
             {form.imageUrl ? <img src={form.imageUrl} alt="Preview" className="mt-3 h-24 w-24 rounded-xl border object-cover" /> : null}
