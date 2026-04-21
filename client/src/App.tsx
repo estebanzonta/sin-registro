@@ -373,7 +373,7 @@ export default function App() {
           path="/cart"
           element={
             <CartPage
-              session={session?.user.role === 'customer' ? session : null}
+              session={session}
               onSessionChange={(nextSession) => {
                 persistSession(nextSession);
                 setSession(nextSession);
@@ -386,7 +386,7 @@ export default function App() {
           path="/orders"
           element={
             <OrdersPage
-              session={session?.user.role === 'customer' ? session : null}
+              session={session}
               onSessionChange={(nextSession) => {
                 persistSession(nextSession);
                 setSession(nextSession);

@@ -30,6 +30,19 @@ function serializeCart(items: CartItem[]): CartResponse {
   };
 }
 
+function buildConfigurationSnapshot(config: Awaited<ReturnType<ConfiguratorService['resolveConfiguration']>>) {
+  return JSON.stringify({
+    configurationCode: config.configurationCode,
+    basePrice: config.basePrice,
+    extraPrice: config.extraPrice,
+    price: config.price,
+    printArea: config.printArea,
+    stock: config.stock,
+    allowedLogoPlacements: config.allowedLogoPlacements.map((placement) => placement.code),
+    selectedTransferSize: config.selectedTransferSize,
+  });
+}
+
 function mapCartItem(item: any): CartItem {
   return {
     id: item.id,
@@ -110,6 +123,7 @@ export class CartService {
       designId: request.designId,
       uploadTemplateId: request.uploadTemplateId,
       transferSizeCode: request.transferSizeCode,
+      quantity,
     });
 
     if (!config.valid) {
@@ -136,18 +150,7 @@ export class CartService {
         unitPrice: config.price,
         quantity,
         layoutSnapshotJson: request.layoutSnapshotJson,
-        configurationSnapshotJson:
-          request.configurationSnapshotJson ||
-          JSON.stringify({
-            configurationCode: config.configurationCode,
-            basePrice: config.basePrice,
-            extraPrice: config.extraPrice,
-            price: config.price,
-            printArea: config.printArea,
-            stock: config.stock,
-            allowedLogoPlacements: config.allowedLogoPlacements.map((placement) => placement.code),
-            selectedTransferSize: config.selectedTransferSize,
-          }),
+        configurationSnapshotJson: request.configurationSnapshotJson || buildConfigurationSnapshot(config),
       },
     });
 
@@ -176,11 +179,34 @@ export class CartService {
       throw new AppError('La cantidad debe ser mayor a 0.', 400);
     }
 
+    const nextQuantity = request.quantity ?? item.quantity;
+    const nextLogoPlacementCode = request.logoPlacementCode ?? item.logoPlacementCode;
+
+    const config = await new ConfiguratorService().resolveConfiguration({
+      customizationMode: item.customizationMode as AddToCartRequest['customizationMode'],
+      garmentModelId: item.garmentModelId,
+      colorId: item.colorId,
+      sizeId: item.sizeId,
+      printPlacementCode: item.printPlacementCode,
+      logoPlacementCode: nextLogoPlacementCode,
+      designId: item.designId || undefined,
+      uploadTemplateId: item.uploadTemplateId || undefined,
+      transferSizeCode: item.transferSizeCode as AddToCartRequest['transferSizeCode'],
+      quantity: nextQuantity,
+    });
+
+    if (!config.valid) {
+      throw new AppError('No hay stock disponible para esta configuraciÃ³n.', 400);
+    }
+
     await prisma.cartItem.update({
       where: { id: itemId },
       data: {
-        quantity: request.quantity ?? item.quantity,
-        logoPlacementCode: request.logoPlacementCode ?? item.logoPlacementCode,
+        quantity: nextQuantity,
+        logoPlacementCode: nextLogoPlacementCode,
+        configurationCode: config.configurationCode,
+        unitPrice: config.price,
+        configurationSnapshotJson: buildConfigurationSnapshot(config),
       },
     });
 

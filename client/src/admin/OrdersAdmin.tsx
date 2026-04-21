@@ -21,6 +21,9 @@ type OrderItem = {
   id: string;
   customizationMode: 'brand_design' | 'user_upload';
   configurationCode: string;
+  garmentModelId: string;
+  colorId: string;
+  sizeId: string;
   designId?: string;
   uploadTemplateId?: string;
   customAssetUrlsJson?: string;
@@ -46,6 +49,14 @@ type OrdersResponse = {
 };
 
 type Catalog = {
+  categories: Array<{
+    garmentModels?: Array<{
+      id: string;
+      name: string;
+      colors?: Array<{ colorId: string; color: { id: string; name: string } }>;
+      sizes?: Array<{ sizeId: string; size: { id: string; name: string } }>;
+    }>;
+  }>;
   collections: Array<{ designs?: Array<{ id: string; name: string }> }>;
   uploadTemplates: Array<{ id: string; name: string }>;
 };
@@ -85,6 +96,10 @@ export default function OrdersAdmin() {
 
   const designMap = useMemo(
     () => new Map((catalog?.collections || []).flatMap((collection) => (collection.designs || []).map((item) => [item.id, item.name]))),
+    [catalog]
+  );
+  const garmentMap = useMemo(
+    () => new Map((catalog?.categories || []).flatMap((category) => (category.garmentModels || []).map((item) => [item.id, item]))),
     [catalog]
   );
   const templateMap = useMemo(() => new Map((catalog?.uploadTemplates || []).map((item) => [item.id, item.name])), [catalog]);
@@ -128,7 +143,10 @@ export default function OrdersAdmin() {
 
             <div className="mt-5 space-y-4">
               {order.items.map((item) => {
+                const garment = garmentMap.get(item.garmentModelId);
                 const contentName = item.customizationMode === 'brand_design' ? designMap.get(item.designId || '') : templateMap.get(item.uploadTemplateId || '');
+                const colorName = garment?.colors?.find((color) => color.colorId === item.colorId)?.color.name || item.colorId;
+                const sizeName = garment?.sizes?.find((size) => size.sizeId === item.sizeId)?.size.name || item.sizeId;
                 const customPayload = normalizeCustomPayload(item.customAssetUrlsJson);
 
                 return (
@@ -138,6 +156,9 @@ export default function OrdersAdmin() {
                         <p className="text-xs uppercase tracking-[0.2em] text-gray-500">{item.configurationCode}</p>
                         <h3 className="mt-2 text-lg font-semibold text-gray-900">{contentName || 'Personalizado'}</h3>
                         <div className="mt-3 grid gap-1 text-sm text-gray-600">
+                          <p>Prenda: {garment?.name || item.garmentModelId}</p>
+                          <p>Color: {colorName}</p>
+                          <p>Talle: {sizeName}</p>
                           <p>Modo: {item.customizationMode}</p>
                           <p>Estampa: {item.printPlacementCode}</p>
                           <p>Logo: {item.logoPlacementCode}</p>

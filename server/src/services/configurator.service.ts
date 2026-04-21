@@ -42,6 +42,7 @@ export class ConfiguratorService {
       designId,
       uploadTemplateId,
       transferSizeCode,
+      quantity = 1,
     } = config;
 
     const baseQueriesStartedAt = nowMs();
@@ -202,7 +203,7 @@ export class ConfiguratorService {
     const basePrice = model.basePrice || 0;
     const totalPrice = basePrice + extraPrice;
     const result = {
-      valid: blankStock.quantity > 0 && (transferStock === null || transferStock > 0),
+      valid: blankStock.quantity >= quantity && (transferStock === null || transferStock >= quantity),
       basePrice,
       extraPrice,
       price: totalPrice,
@@ -227,6 +228,7 @@ export class ConfiguratorService {
     ], {
       customizationMode,
       printPlacementCode,
+      quantity,
       valid: result.valid,
     });
 

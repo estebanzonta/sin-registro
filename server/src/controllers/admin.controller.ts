@@ -34,6 +34,10 @@ function invalidateCatalogCache() {
   catalogService.invalidateCatalogInitCache();
 }
 
+function buildBlankStockKey(colorId: string, sizeId: string) {
+  return `${colorId}:${sizeId}`;
+}
+
 export const getGarmentModels = asyncHandler(async (_req: Request, res: Response) => {
   const models = await prisma.garmentModel.findMany({
     include: {
@@ -167,20 +171,38 @@ export const updateGarmentModel = asyncHandler(async (req: Request, res: Respons
         ? colorIds
         : (await tx.garmentModelColor.findMany({ where: { garmentModelId: id }, select: { colorId: true } })).map((item) => item.colorId);
 
-      await tx.blankStock.deleteMany({
+      const existingBlankStock = await tx.blankStock.findMany({
         where: { garmentModelId: id },
+        select: { id: true, colorId: true, sizeId: true },
       });
+      const nextBlankStockKeys = new Set(
+        nextColorIds.flatMap((colorId: string) => nextSizeIds.map((sizeId: string) => buildBlankStockKey(colorId, sizeId)))
+      );
+      const blankStockIdsToDelete = existingBlankStock
+        .filter((item) => !nextBlankStockKeys.has(buildBlankStockKey(item.colorId, item.sizeId)))
+        .map((item) => item.id);
 
-      if (nextSizeIds.length && nextColorIds.length) {
+      if (blankStockIdsToDelete.length) {
+        await tx.blankStock.deleteMany({
+          where: { id: { in: blankStockIdsToDelete } },
+        });
+      }
+
+      const existingBlankStockKeys = new Set(existingBlankStock.map((item) => buildBlankStockKey(item.colorId, item.sizeId)));
+      const blankStockToCreate = nextColorIds.flatMap((colorId: string) =>
+        nextSizeIds
+          .filter((sizeId: string) => !existingBlankStockKeys.has(buildBlankStockKey(colorId, sizeId)))
+          .map((sizeId: string) => ({
+            garmentModelId: id,
+            colorId,
+            sizeId,
+            quantity: 0,
+          }))
+      );
+
+      if (blankStockToCreate.length) {
         await tx.blankStock.createMany({
-          data: nextColorIds.flatMap((colorId: string) =>
-            nextSizeIds.map((sizeId: string) => ({
-              garmentModelId: id,
-              colorId,
-              sizeId,
-              quantity: 0,
-            }))
-          ),
+          data: blankStockToCreate,
           skipDuplicates: true,
         });
       }
@@ -399,8 +421,8 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
     throw new AppError('Debés configurar al menos un tamaño de transfer.', 400);
   }
 
-  const design = await prisma.$transaction(async (tx) => {
-    await tx.design.update({
+  const designMutations = [
+    prisma.design.update({
       where: { id },
       data: {
         collection: collection ? { connect: { id: collection.id } } : { disconnect: true },
@@ -413,28 +435,25 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
         limited: Boolean(collection),
         active: active === undefined ? undefined : Boolean(active),
       },
-    });
-
-    if (placementCodes.length || placementRecords.length) {
-      await tx.designPlacement.deleteMany({
-        where: { designId: id },
-      });
-
-      if (placementRecords.length) {
-        await tx.designPlacement.createMany({
-          data: placementRecords.map((placement) => ({
-            designId: id,
-            placementId: placement.id,
-          })),
-          skipDuplicates: true,
-        });
-      }
-    }
-
-    await tx.designTransferSize.deleteMany({
+    }),
+    prisma.designPlacement.deleteMany({
       where: { designId: id },
-    });
-    await tx.designTransferSize.createMany({
+    }),
+    prisma.designTransferSize.deleteMany({
+      where: { designId: id },
+    }),
+    ...(placementRecords.length
+      ? [
+          prisma.designPlacement.createMany({
+            data: placementRecords.map((placement) => ({
+              designId: id,
+              placementId: placement.id,
+            })),
+            skipDuplicates: true,
+          }),
+        ]
+      : []),
+    prisma.designTransferSize.createMany({
       data: nextTransferSizes.map((item) => ({
         designId: id,
         sizeCode: item.sizeCode,
@@ -444,17 +463,19 @@ export const updateDesign = asyncHandler(async (req: Request, res: Response) => 
         extraPrice: item.extraPrice,
       })),
       skipDuplicates: true,
-    });
+    }),
+  ];
 
-    return tx.design.findUniqueOrThrow({
-      where: { id },
-      include: {
-        collection: true,
-        designCategory: true,
-        transferSizes: true,
-        placements: { include: { placement: true } },
-      },
-    });
+  await prisma.$transaction(designMutations);
+
+  const design = await prisma.design.findUniqueOrThrow({
+    where: { id },
+    include: {
+      collection: true,
+      designCategory: true,
+      transferSizes: true,
+      placements: { include: { placement: true } },
+    },
   });
 
   invalidateCatalogCache();
@@ -572,6 +593,7 @@ export const updateBlankStock = asyncHandler(async (req: Request, res: Response)
     data: { quantity },
   });
 
+  invalidateCatalogCache();
   res.json(record);
 });
 

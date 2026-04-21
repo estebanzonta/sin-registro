@@ -8,8 +8,67 @@ import type {
   UploadedCustomizationPayload,
 } from '../types/order.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { catalogService } from './catalog.service.js';
 
 export class OrderService {
+  private static buildConfigurationSnapshot(config: Awaited<ReturnType<ConfiguratorService['resolveConfiguration']>>) {
+    return JSON.stringify({
+      configurationCode: config.configurationCode,
+      availableLogoPlacements: config.allowedLogoPlacements.map((placement) => placement.code),
+      selectedTransferSize: config.selectedTransferSize,
+      printArea: config.printArea,
+    });
+  }
+
+  private static async reserveStock(
+    tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+    item: {
+      quantity: number;
+      customizationMode: OrderItemData['customizationMode'];
+      garmentModelId: string;
+      colorId: string;
+      sizeId: string;
+      designId?: string;
+      transferSizeCode?: OrderItemData['transferSizeCode'];
+    }
+  ) {
+    const blankStockUpdate = await tx.blankStock.updateMany({
+      where: {
+        garmentModelId: item.garmentModelId,
+        colorId: item.colorId,
+        sizeId: item.sizeId,
+        quantity: { gte: item.quantity },
+      },
+      data: {
+        quantity: { decrement: item.quantity },
+      },
+    });
+
+    if (blankStockUpdate.count !== 1) {
+      throw new AppError('Uno de los productos del carrito ya no tiene stock o dejÃ³ de estar disponible.', 400);
+    }
+
+    if (item.customizationMode !== 'brand_design' || !item.designId || !item.transferSizeCode) {
+      return;
+    }
+
+    const transferStockUpdate = await tx.designTransferSize.updateMany({
+      where: {
+        designId: item.designId,
+        sizeCode: item.transferSizeCode,
+        active: true,
+        stock: { gte: item.quantity },
+      },
+      data: {
+        stock: { decrement: item.quantity },
+      },
+    });
+
+    if (transferStockUpdate.count !== 1) {
+      throw new AppError('Uno de los productos del carrito ya no tiene stock o dejÃ³ de estar disponible.', 400);
+    }
+  }
+
   private static validateCustomerEmail(email: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
@@ -113,6 +172,7 @@ export class OrderService {
           designId: item.designId,
           uploadTemplateId: item.uploadTemplateId,
           transferSizeCode: item.transferSizeCode,
+          quantity,
         });
 
         if (!config.valid) {
@@ -139,14 +199,15 @@ export class OrderService {
             logoPlacementCode: item.logoPlacementCode,
             unitPrice: config.price,
             layoutSnapshotJson: item.layoutSnapshot ? JSON.stringify(item.layoutSnapshot) : null,
-            configurationSnapshotJson:
-              item.configurationSnapshotJson ||
-              JSON.stringify({
-                configurationCode: config.configurationCode,
-                availableLogoPlacements: config.allowedLogoPlacements.map((placement) => placement.code),
-                selectedTransferSize: config.selectedTransferSize,
-                printArea: config.printArea,
-              }),
+            configurationSnapshotJson: item.configurationSnapshotJson || this.buildConfigurationSnapshot(config),
+          },
+          reservation: {
+            customizationMode: item.customizationMode,
+            garmentModelId: item.garmentModelId,
+            colorId: item.colorId,
+            sizeId: item.sizeId,
+            designId: item.designId,
+            transferSizeCode: item.transferSizeCode,
           },
         };
       })
@@ -155,6 +216,13 @@ export class OrderService {
     const totalPrice = validatedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
 
     const order = await prisma.$transaction(async (tx) => {
+      for (const item of validatedItems) {
+        await this.reserveStock(tx, {
+          quantity: item.quantity,
+          ...item.reservation,
+        });
+      }
+
       const createdOrder = await tx.order.create({
         data: {
           userId,
@@ -185,6 +253,7 @@ export class OrderService {
       return createdOrder;
     });
 
+    catalogService.invalidateCatalogInitCache();
     return this.formatOrderResponse(order);
   }
 

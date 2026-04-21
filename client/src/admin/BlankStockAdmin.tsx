@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { PackageSearch, RefreshCw } from 'lucide-react';
 import { readFriendlyApiError } from '../lib/apiErrors';
+import { invalidateCatalogCache } from '../lib/catalogCache';
 
 export default function BlankStockAdmin() {
   const [stock, setStock] = useState<any[]>([]);
@@ -26,6 +27,7 @@ export default function BlankStockAdmin() {
     setStock((current) => current.map((item) => (item.id === id ? { ...item, quantity: nextQuantity } : item)));
     try {
       await axios.patch(`/api/admin/blank-stock/${id}`, { quantity: nextQuantity });
+      invalidateCatalogCache();
     } catch (error) {
       setStock(previousStock);
       setErrorMessage(readFriendlyApiError(error, 'No se pudo actualizar el stock.'));

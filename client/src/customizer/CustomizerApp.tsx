@@ -213,6 +213,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   const [isValid, setIsValid] = useState(false);
   const [hasResolvedConfiguration, setHasResolvedConfiguration] = useState(false);
   const [stockValidationMessage, setStockValidationMessage] = useState<string | null>(null);
+  const [viewValidationMessage, setViewValidationMessage] = useState<string | null>(null);
   const [configurationCode, setConfigurationCode] = useState('');
   const [allowedLogoPlacements, setAllowedLogoPlacements] = useState<Array<{ code: string; name: string }>>([]);
   const [logoPlacementCode, setLogoPlacementCode] = useState('LC');
@@ -265,7 +266,22 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     const matchesCategory = selectedCategoryId === 'all' || item.designCategoryId === selectedCategoryId;
     return matchesPlacement && matchesCategory;
   }), [designs, selectedView, selectedCategoryId]);
-  const selectedDesign = filteredDesigns.find((item) => item.id === selectedDesignId) || null;
+  const selectedDesign = designs.find((item) => item.id === selectedDesignId) || null;
+  const selectedDesignPlacementCodes = useMemo(
+    () => selectedDesign?.placements?.map((item) => item.placement.code).filter(Boolean) || [],
+    [selectedDesign]
+  );
+  const selectedDesignAllowsCurrentView = useMemo(() => {
+    if (customMode !== 'brand_design' || !selectedDesign) {
+      return true;
+    }
+
+    if (!selectedDesignPlacementCodes.length) {
+      return true;
+    }
+
+    return selectedDesignPlacementCodes.includes(selectedView === 'front' ? 'FRONT' : 'BACK');
+  }, [customMode, selectedDesign, selectedDesignPlacementCodes, selectedView]);
   const uploadTemplates = useMemo(() => initData?.uploadTemplates || [], [initData]);
   const filteredUploadTemplates = useMemo(() => uploadTemplates.filter((item) => (item.customizationType || 'photo_simple') === selectedUploadMode), [uploadTemplates, selectedUploadMode]);
   const selectedPlacementCode = selectedView === 'back' ? 'BACK' : 'FRONT';
@@ -441,6 +457,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
 
   useEffect(() => {
     if (customMode !== 'brand_design') return;
+    if (screen !== 'selection') return;
     if (!filteredDesigns.length) {
       setSelectedDesignId('');
       return;
@@ -448,7 +465,21 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     if (!filteredDesigns.some((item) => item.id === selectedDesignId)) {
       setSelectedDesignId(filteredDesigns[0].id);
     }
-  }, [customMode, filteredDesigns, selectedDesignId]);
+  }, [customMode, filteredDesigns, screen, selectedDesignId]);
+
+  useEffect(() => {
+    if (customMode !== 'brand_design' || !selectedDesign) {
+      setViewValidationMessage(null);
+      return;
+    }
+
+    if (selectedDesignAllowsCurrentView) {
+      setViewValidationMessage(null);
+      return;
+    }
+
+    setViewValidationMessage(`La estampa ${selectedDesign.code} solo está disponible para ${selectedDesignPlacementCodes.includes('FRONT') ? 'frente' : 'espalda'}.`);
+  }, [customMode, selectedDesign, selectedDesignAllowsCurrentView, selectedDesignPlacementCodes]);
 
   useEffect(() => {
     const hasValidTransferSize = transferSizeOptions.length > 0 && transferSizeOptions.some((item) => item.sizeCode === selectedTransferSizeCode);
@@ -460,6 +491,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       !selectedSizeId ||
       !selectedColorId ||
       (customMode === 'brand_design' && !selectedDesignId) ||
+      (customMode === 'brand_design' && !selectedDesignAllowsCurrentView) ||
       (customMode === 'user_upload' && !selectedTemplate) ||
       !hasValidPrintPlacement ||
       !hasValidTransferSize ||
@@ -512,7 +544,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions, allowedLogoOptions, productPrintPlacementCodes, selectedPlacementCode, estimatedTotalPrice, estimatedBasePrice, estimatedTransferExtraPrice]);
+  }, [selectedProduct, selectedSizeId, selectedColorId, selectedDesignId, selectedDesignAllowsCurrentView, selectedTemplate, selectedView, logoPlacementCode, customMode, selectedTransferSizeCode, transferSizeOptions, allowedLogoOptions, productPrintPlacementCodes, selectedPlacementCode, estimatedTotalPrice, estimatedBasePrice, estimatedTransferExtraPrice]);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
@@ -678,15 +710,26 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   function renderCustomizerMockup(view: 'front' | 'back') {
     const image = resolveMockupImage(selectedProduct, currentColor, view, selectedColorOption);
     const isActiveView = selectedView === view;
+    const viewCode = view === 'front' ? 'FRONT' : 'BACK';
     const canEditView = customMode === 'brand_design'
-      || (customMode === 'user_upload' && uploadPlacementCodes.includes(view === 'front' ? 'FRONT' : 'BACK'));
+      ? !selectedDesign || !selectedDesignPlacementCodes.length || selectedDesignPlacementCodes.includes(viewCode)
+      : uploadPlacementCodes.includes(viewCode);
     const uploadedAssetCount = uploadedAssets.length;
 
     return (
       <button
         key={view}
         type="button"
-        onClick={() => { if (canEditView) setSelectedView(view); }}
+        onClick={() => {
+          if (canEditView) {
+            setSelectedView(view);
+            return;
+          }
+
+          if (customMode === 'brand_design' && selectedDesign) {
+            setViewValidationMessage(`La estampa ${selectedDesign.code} no puede aplicarse en ${view === 'front' ? 'frente' : 'espalda'}.`);
+          }
+        }}
         className={`relative flex h-[260px] w-[180px] items-center justify-center rounded-[28px] border p-4 transition sm:h-[360px] sm:w-[240px] lg:h-[430px] lg:w-[280px] ${isActiveView ? 'border-white/40 bg-white/10 shadow-[0_24px_60px_rgba(0,0,0,0.38)]' : 'border-white/10 bg-white/[0.04] opacity-75'} ${canEditView ? 'cursor-pointer' : 'cursor-default'}`}
       >
         <img src={image} className="absolute inset-0 h-full w-full object-contain" alt={`T-Shirt ${view}`} />
@@ -813,20 +856,33 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     }
 
     if (layout === 'desktop') {
+      const frontAllowed = customMode === 'brand_design'
+        ? !selectedDesign || !selectedDesignPlacementCodes.length || selectedDesignPlacementCodes.includes('FRONT')
+        : true;
+      const backAllowed = customMode === 'brand_design'
+        ? !selectedDesign || !selectedDesignPlacementCodes.length || selectedDesignPlacementCodes.includes('BACK')
+        : true;
       return (
         <div className={`flex flex-col gap-1 rounded-3xl p-2 shadow-xl backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/95' : 'border border-white/30 bg-white/15'}`}>
-          <button onClick={() => setSelectedView('front')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'front' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'text-[#111827]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Frente</button>
-          <button onClick={() => setSelectedView('back')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'back' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'text-[#111827]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Espalda</button>
+          <button disabled={!frontAllowed} onClick={() => setSelectedView('front')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'front' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'text-[#111827]' : 'text-white/60'} ${!frontAllowed ? 'cursor-not-allowed opacity-35' : ''}`} style={{ writingMode: 'vertical-rl' }}>Frente</button>
+          <button disabled={!backAllowed} onClick={() => setSelectedView('back')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'back' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'text-[#111827]' : 'text-white/60'} ${!backAllowed ? 'cursor-not-allowed opacity-35' : ''}`} style={{ writingMode: 'vertical-rl' }}>Espalda</button>
         </div>
       );
     }
+
+    const frontAllowed = customMode === 'brand_design'
+      ? !selectedDesign || !selectedDesignPlacementCodes.length || selectedDesignPlacementCodes.includes('FRONT')
+      : true;
+    const backAllowed = customMode === 'brand_design'
+      ? !selectedDesign || !selectedDesignPlacementCodes.length || selectedDesignPlacementCodes.includes('BACK')
+      : true;
 
     return (
       <div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}>
         <p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Vista</p>
         <div className="mt-3 flex gap-2">
-          <button onClick={() => setSelectedView('front')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'front' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>Frente</button>
-          <button onClick={() => setSelectedView('back')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'back' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>Espalda</button>
+          <button disabled={!frontAllowed} onClick={() => setSelectedView('front')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'front' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'} ${!frontAllowed ? 'cursor-not-allowed opacity-35' : ''}`}>Frente</button>
+          <button disabled={!backAllowed} onClick={() => setSelectedView('back')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'back' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'} ${!backAllowed ? 'cursor-not-allowed opacity-35' : ''}`}>Espalda</button>
         </div>
       </div>
     );
@@ -968,6 +1024,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
         totalPrice={formatMoney(price)}
         configurationCode={configurationCode}
         stockValidationMessage={stockValidationMessage}
+        viewValidationMessage={viewValidationMessage}
         isInvalid={hasResolvedConfiguration && !isValid}
         saving={saving}
         customizerActionDisabled={customizerActionDisabled}

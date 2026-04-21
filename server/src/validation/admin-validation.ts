@@ -90,15 +90,15 @@ export function parsePrintAreaPayload(body: unknown) {
 
 export function parseGarmentModelPayload(body: unknown, mode: 'create' | 'update') {
   const payload = (body || {}) as Record<string, unknown>;
-  const sizeIds = parseStringArray(payload.sizeIds);
-  const colorIds = parseStringArray(payload.colorIds);
+  const sizeIds = mode === 'update' && payload.sizeIds === undefined ? undefined : parseStringArray(payload.sizeIds);
+  const colorIds = mode === 'update' && payload.colorIds === undefined ? undefined : parseStringArray(payload.colorIds);
   const basePrice = asNumber(payload.basePrice, 'El precio base no es válido.');
 
   if (mode === 'create') {
-    if (!sizeIds.length) {
+    if (!sizeIds?.length) {
       throw new AppError('Debés seleccionar al menos un talle.', 400);
     }
-    if (!colorIds.length) {
+    if (!colorIds?.length) {
       throw new AppError('Debés seleccionar al menos un color.', 400);
     }
   }

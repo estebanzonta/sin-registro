@@ -250,6 +250,7 @@ export interface ConfiguratorRequest {
   designId?: string;
   uploadTemplateId?: string;
   transferSizeCode: TransferSizeCode;
+  quantity?: number;
 }
 
 export interface ResolvedTransferSize {

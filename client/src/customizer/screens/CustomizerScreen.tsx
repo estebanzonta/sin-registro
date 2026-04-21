@@ -15,6 +15,7 @@ type Props = {
   totalPrice: string;
   configurationCode: string;
   stockValidationMessage: string | null;
+  viewValidationMessage: string | null;
   isInvalid: boolean;
   saving: boolean;
   customizerActionDisabled: boolean;
@@ -41,6 +42,7 @@ export default function CustomizerScreen({
   totalPrice,
   configurationCode,
   stockValidationMessage,
+  viewValidationMessage,
   isInvalid,
   saving,
   customizerActionDisabled,
@@ -80,6 +82,7 @@ export default function CustomizerScreen({
             <h3 className="text-3xl font-bold text-[#111827]">{totalPrice}</h3>
             <p className="mt-1 break-all text-xs text-gray-500">{configurationCode || 'Configuración pendiente'}</p>
             {stockValidationMessage ? <p className={`mt-1 text-xs ${isInvalid ? 'text-red-500' : 'text-amber-600'}`}>{stockValidationMessage}</p> : null}
+            {viewValidationMessage ? <p className="mt-1 text-xs text-amber-600">{viewValidationMessage}</p> : null}
           </div>
           {session ? (
             <>

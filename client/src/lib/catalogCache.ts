@@ -1,14 +1,25 @@
 import axios from 'axios';
 
 const CATALOG_CACHE_KEY = 'sr-catalog-init-cache';
-const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+const CATALOG_CACHE_INVALIDATION_KEY = 'sr-catalog-init-invalidation';
+const CATALOG_CACHE_TTL_MS = 60 * 1000;
 
 let inFlightCatalogRequest: Promise<unknown> | null = null;
 
 type CatalogCacheEntry<T> = {
+  writtenAt: number;
   expiresAt: number;
   value: T;
 };
+
+function readCatalogInvalidationMark() {
+  if (typeof window === 'undefined') {
+    return 0;
+  }
+
+  const value = Number(window.localStorage.getItem(CATALOG_CACHE_INVALIDATION_KEY) || 0);
+  return Number.isFinite(value) ? value : 0;
+}
 
 function readCachedCatalog<T>() {
   if (typeof window === 'undefined') {
@@ -20,7 +31,7 @@ function readCachedCatalog<T>() {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as CatalogCacheEntry<T>;
-    if (!parsed?.expiresAt || parsed.expiresAt <= Date.now()) {
+    if (!parsed?.expiresAt || parsed.expiresAt <= Date.now() || !parsed.writtenAt || parsed.writtenAt < readCatalogInvalidationMark()) {
       window.sessionStorage.removeItem(CATALOG_CACHE_KEY);
       return null;
     }
@@ -38,6 +49,7 @@ function writeCachedCatalog<T>(value: T) {
   }
 
   const entry: CatalogCacheEntry<T> = {
+    writtenAt: Date.now(),
     value,
     expiresAt: Date.now() + CATALOG_CACHE_TTL_MS,
   };
@@ -49,6 +61,7 @@ export function invalidateCatalogCache() {
   inFlightCatalogRequest = null;
   if (typeof window !== 'undefined') {
     window.sessionStorage.removeItem(CATALOG_CACHE_KEY);
+    window.localStorage.setItem(CATALOG_CACHE_INVALIDATION_KEY, String(Date.now()));
   }
 }
 
