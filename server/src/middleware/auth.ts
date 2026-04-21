@@ -4,7 +4,9 @@ import { readRequiredEnv } from '../config/required-env.js';
 import type { JWTPayload } from '../types/index.js';
 import { AppError } from './errorHandler.js';
 
-const JWT_SECRET = readRequiredEnv('JWT_SECRET');
+function getJwtSecret() {
+  return readRequiredEnv('JWT_SECRET');
+}
 
 declare global {
   namespace Express {
@@ -23,7 +25,7 @@ export const verifyAuth = (req: Request, _res: Response, next: NextFunction) => 
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    const decoded = jwt.verify(token, getJwtSecret()) as JWTPayload;
 
     req.user = decoded;
     next();
@@ -47,7 +49,7 @@ export const verifyAdmin = (req: Request, _res: Response, next: NextFunction) =>
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    const decoded = jwt.verify(token, getJwtSecret()) as JWTPayload;
 
     if (decoded.role !== 'admin') {
       return next(new AppError('No tenés permisos para acceder a esta sección.', 403));

@@ -5,7 +5,9 @@ import { readRequiredEnv } from '../config/required-env.js';
 import type { AuthRequest, AuthResponse, JWTPayload } from '../types/index.js';
 
 class AuthService {
-  private jwtSecret = readRequiredEnv('JWT_SECRET');
+  private getJwtSecret() {
+    return readRequiredEnv('JWT_SECRET');
+  }
 
   validateEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -109,12 +111,12 @@ class AuthService {
       expiresIn: process.env.JWT_EXPIRY || '7d',
     };
 
-    return jwt.sign(payload, this.jwtSecret, options);
+    return jwt.sign(payload, this.getJwtSecret(), options);
   }
 
   verifyToken(token: string): JWTPayload {
     try {
-      const decoded = jwt.verify(token, this.jwtSecret) as JWTPayload;
+      const decoded = jwt.verify(token, this.getJwtSecret()) as JWTPayload;
       return decoded;
     } catch {
       throw new Error('Tu sesión venció. Ingresá nuevamente.');
