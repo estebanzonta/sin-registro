@@ -526,10 +526,52 @@ export const deleteDesign = asyncHandler(async (req: Request, res: Response) => 
 });
 
 export const getBlankStock = asyncHandler(async (_req: Request, res: Response) => {
-  const stock = await prisma.blankStock.findMany({
-    include: { garmentModel: true, color: true, size: true },
-  });
-  res.json(stock);
+  const stock = await prisma.blankStock.findMany();
+  const garmentModelIds = Array.from(new Set(stock.map((item) => item.garmentModelId).filter(Boolean)));
+  const colorIds = Array.from(new Set(stock.map((item) => item.colorId).filter(Boolean)));
+  const sizeIds = Array.from(new Set(stock.map((item) => item.sizeId).filter(Boolean)));
+
+  const [garmentModels, colors, sizes] = await Promise.all([
+    garmentModelIds.length
+      ? prisma.garmentModel.findMany({
+          where: { id: { in: garmentModelIds } },
+          select: { id: true, name: true, active: true },
+        })
+      : Promise.resolve([]),
+    colorIds.length
+      ? prisma.color.findMany({
+          where: { id: { in: colorIds } },
+          select: { id: true, name: true, hex: true, active: true },
+        })
+      : Promise.resolve([]),
+    sizeIds.length
+      ? prisma.size.findMany({
+          where: { id: { in: sizeIds } },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const garmentModelMap = new Map(garmentModels.map((item) => [item.id, item]));
+  const colorMap = new Map(colors.map((item) => [item.id, item]));
+  const sizeMap = new Map(sizes.map((item) => [item.id, item]));
+
+  const normalizedStock = stock
+    .map((item) => ({
+      ...item,
+      garmentModel: garmentModelMap.get(item.garmentModelId) ?? null,
+      color: colorMap.get(item.colorId) ?? null,
+      size: sizeMap.get(item.sizeId) ?? null,
+    }))
+    .sort((left, right) => {
+      const garmentCompare = (left.garmentModel?.name || '').localeCompare(right.garmentModel?.name || '');
+      if (garmentCompare !== 0) return garmentCompare;
+      const colorCompare = (left.color?.name || '').localeCompare(right.color?.name || '');
+      if (colorCompare !== 0) return colorCompare;
+      return (left.size?.name || '').localeCompare(right.size?.name || '');
+    });
+
+  res.json(normalizedStock);
 });
 
 export const getUsers = asyncHandler(async (_req: Request, res: Response) => {

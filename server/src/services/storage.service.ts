@@ -36,6 +36,27 @@ function normalizeSupabaseUrl(value?: string | null) {
   return value ? value.replace(/\/+$/, '') : '';
 }
 
+function hasSupabaseStorageConfig() {
+  return Boolean(
+    normalizeSupabaseUrl(process.env.SUPABASE_URL) &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    process.env.SUPABASE_STORAGE_BUCKET
+  );
+}
+
+function resolveStorageDriver() {
+  const configuredDriver = process.env.STORAGE_DRIVER?.trim().toLowerCase();
+  if (configuredDriver) {
+    return configuredDriver;
+  }
+
+  if (hasSupabaseStorageConfig()) {
+    return 'supabase';
+  }
+
+  return 'local';
+}
+
 async function uploadToLocal(folder: string, filename: string, buffer: Buffer): Promise<UploadResult> {
   const targetDir = path.join(localUploadsRoot, folder);
   const targetPath = path.join(targetDir, filename);
@@ -93,12 +114,20 @@ function inferContentType(filename: string) {
 
 async function readFromLocal(folder: string, filename: string): Promise<AssetReadResult> {
   const targetPath = path.join(localUploadsRoot, folder, filename);
-  const buffer = await fs.readFile(targetPath);
+  try {
+    const buffer = await fs.readFile(targetPath);
 
-  return {
-    buffer,
-    contentType: inferContentType(filename),
-  };
+    return {
+      buffer,
+      contentType: inferContentType(filename),
+    };
+  } catch (error) {
+    const fileError = error as NodeJS.ErrnoException;
+    if (fileError.code === 'ENOENT') {
+      throw new AppError('No encontramos el archivo solicitado.', 404);
+    }
+    throw error;
+  }
 }
 
 async function readFromSupabase(folder: string, filename: string): Promise<AssetReadResult> {
@@ -138,7 +167,7 @@ async function readFromSupabase(folder: string, filename: string): Promise<Asset
 
 export class StorageService {
   static async uploadAsset(folder: string, filename: string, buffer: Buffer, contentType: string): Promise<UploadResult> {
-    const driver = (process.env.STORAGE_DRIVER || 'local').toLowerCase();
+    const driver = resolveStorageDriver();
 
     if (driver === 'supabase') {
       return uploadToSupabase(folder, filename, buffer, contentType);
@@ -156,7 +185,7 @@ export class StorageService {
   }
 
   static async readAsset(folder: string, filename: string): Promise<AssetReadResult> {
-    const driver = (process.env.STORAGE_DRIVER || 'local').toLowerCase();
+    const driver = resolveStorageDriver();
 
     if (driver === 'supabase') {
       return readFromSupabase(folder, filename);
@@ -164,6 +193,10 @@ export class StorageService {
 
     if (driver !== 'local') {
       throw new AppError(`STORAGE_DRIVER no soportado: ${driver}.`, 500);
+    }
+
+    if (isProductionRuntime()) {
+      throw new AppError('STORAGE_DRIVER=local no esta permitido en produccion. Configura STORAGE_DRIVER=supabase.', 500);
     }
 
     return readFromLocal(folder, filename);
@@ -175,14 +208,14 @@ export function normalizeAssetUrl(value?: string | null) {
 
   const localMatch = value.match(/^\/uploads\/([^/]+)\/([^/]+)$/i);
   if (localMatch) {
-    return process.env.STORAGE_DRIVER?.toLowerCase() === 'supabase'
+    return resolveStorageDriver() === 'supabase'
       ? toSupabasePublicUrl(localMatch[1], localMatch[2])
       : toAppAssetUrl(localMatch[1], localMatch[2]);
   }
 
   const proxiedAssetMatch = value.match(/^\/api\/assets\/([^/]+)\/([^/]+)$/i);
   if (proxiedAssetMatch) {
-    return process.env.STORAGE_DRIVER?.toLowerCase() === 'supabase'
+    return resolveStorageDriver() === 'supabase'
       ? toSupabasePublicUrl(proxiedAssetMatch[1], proxiedAssetMatch[2])
       : value;
   }
