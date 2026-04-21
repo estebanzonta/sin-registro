@@ -2,7 +2,8 @@ import type { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { prisma } from '../db.js';
 import { catalogService } from '../services/catalog.service.js';
-import { normalizeAssetUrl, StorageService } from '../services/storage.service.js';
+import { StorageService } from '../services/storage.service.js';
+import { normalizeGarmentModelAssets } from '../services/garment-model-assets.js';
 import { parseBlankStockPayload, parseBrandLogoPayload, parseCollectionPayload, parseDesignPayload, parseGarmentModelPayload, parseNamedEntityPayload, parsePrintAreaPayload, parseUploadAssetRequest, parseUploadTemplatePayload, parseUserRolePayload } from '../validation/admin-validation.js';
 
 function slugify(value: string) {
@@ -26,23 +27,6 @@ function parseImageDataUrl(dataUrl: string) {
     contentType: match[1],
     extension,
     buffer: Buffer.from(match[2], 'base64'),
-  };
-}
-
-function normalizeGarmentModelAssets<T extends {
-  frontMockupUrl?: string | null;
-  backMockupUrl?: string | null;
-  colors?: Array<{ frontMockupUrl?: string | null; backMockupUrl?: string | null }>;
-}>(model: T) {
-  return {
-    ...model,
-    frontMockupUrl: normalizeAssetUrl(model.frontMockupUrl),
-    backMockupUrl: normalizeAssetUrl(model.backMockupUrl),
-    colors: model.colors?.map((item) => ({
-      ...item,
-      frontMockupUrl: normalizeAssetUrl(item.frontMockupUrl),
-      backMockupUrl: normalizeAssetUrl(item.backMockupUrl),
-    })),
   };
 }
 

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Palette, Plus, Ruler, Shirt } from 'lucide-react';
 import { readFriendlyApiError } from '../lib/apiErrors';
 import { getCatalogInit, invalidateCatalogCache } from '../lib/catalogCache';
+import { slugify } from '../lib/slugify';
 
 type Category = {
   id: string;
@@ -57,15 +58,6 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   colorIds: [],
   colorMockups: [],
 };
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

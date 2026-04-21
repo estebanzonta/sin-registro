@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Settings } from 'lucide-react';
 import { readFriendlyApiError } from '../lib/apiErrors';
 import { getCatalogInit, invalidateCatalogCache } from '../lib/catalogCache';
+import { slugify } from '../lib/slugify';
 
 type Placement = {
   id: string;
@@ -77,15 +78,6 @@ const DEFAULTS_BY_CODE: Record<string, AreaForm> = {
 
 function formKey(garmentModelId: string, placementCode: string) {
   return `${garmentModelId}:${placementCode}`;
-}
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {

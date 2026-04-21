@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Image as ImageIcon, Layers3, Pencil, Plus, X } from 'lucide-react';
 import { readFriendlyApiError } from '../lib/apiErrors';
 import { getCatalogInit, invalidateCatalogCache } from '../lib/catalogCache';
+import { slugify } from '../lib/slugify';
 
 type DesignCategory = {
   id: string;
@@ -92,15 +93,6 @@ function buildEmptyForm(defaultCategoryId = ''): DesignForm {
     placementCodes: ['FRONT'],
     transferSizes: DEFAULT_TRANSFER_SIZES.map((item) => ({ ...item })),
   };
-}
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 }
 
 function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number) {

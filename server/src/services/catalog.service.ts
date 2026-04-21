@@ -1,7 +1,7 @@
 import { prisma } from '../db.js';
-import { normalizeAssetUrl } from './storage.service.js';
 import type { CatalogInitResponse } from '../types/index.js';
 import { logTiming, nowMs } from '../utils/timing.js';
+import { normalizeGarmentModelAssets } from './garment-model-assets.js';
 
 const CATALOG_CACHE_TTL_MS = 60 * 1000;
 
@@ -12,23 +12,6 @@ let catalogInitCache: {
 let catalogInitInFlight: Promise<CatalogInitResponse> | null = null;
 
 export class CatalogService {
-  private normalizeGarmentModel<T extends {
-    frontMockupUrl?: string | null;
-    backMockupUrl?: string | null;
-    colors?: Array<{ frontMockupUrl?: string | null; backMockupUrl?: string | null }>;
-  }>(model: T) {
-    return {
-      ...model,
-      frontMockupUrl: normalizeAssetUrl(model.frontMockupUrl),
-      backMockupUrl: normalizeAssetUrl(model.backMockupUrl),
-      colors: model.colors?.map((item) => ({
-        ...item,
-        frontMockupUrl: normalizeAssetUrl(item.frontMockupUrl),
-        backMockupUrl: normalizeAssetUrl(item.backMockupUrl),
-      })),
-    };
-  }
-
   private isCollectionAvailable(collection: { startsAt: Date | null; endsAt: Date | null; active: boolean } | null) {
     if (!collection) {
       return true;
@@ -194,7 +177,7 @@ export class CatalogService {
     const response = {
       categories: categories.map((category) => ({
         ...category,
-        garmentModels: category.garmentModels.map((model) => this.normalizeGarmentModel(model)),
+        garmentModels: category.garmentModels.map((model) => normalizeGarmentModelAssets(model)),
       })),
       colors,
       sizes,
@@ -246,7 +229,7 @@ export class CatalogService {
       },
     });
 
-    return model ? this.normalizeGarmentModel(model) : null;
+    return model ? normalizeGarmentModelAssets(model) : null;
   }
 }
 
