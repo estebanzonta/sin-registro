@@ -13,13 +13,14 @@ type CustomMode = 'brand_design' | 'user_upload';
 type UploadMode = 'photo_simple' | 'photo_collage' | 'pets';
 type ProductSizeOption = { sizeId: string; size: { id: string; name: string } };
 type ProductColorOption = { colorId: string; color: { id: string; name: string; hex: string }; frontMockupUrl?: string; backMockupUrl?: string };
-type Product = { id: string; name: string; slug: string; description?: string; basePrice: number; frontMockupUrl?: string; backMockupUrl?: string; sizes?: ProductSizeOption[]; colors?: ProductColorOption[]; printAreas?: Array<{ placement: { code: string } }> };
+type BlankStockEntry = { colorId: string; sizeId: string; quantity: number };
+type Product = { id: string; name: string; slug: string; description?: string; basePrice: number; frontMockupUrl?: string; backMockupUrl?: string; sizes?: ProductSizeOption[]; colors?: ProductColorOption[]; blankStocks?: BlankStockEntry[]; printAreas?: Array<{ placement: { code: string } }> };
 type SizePriceOption = { id: string; sizeCode: string; widthCm: number; heightCm: number; extraPrice: number };
 type Design = { id: string; name: string; code: string; imageUrl: string; designCategoryId?: string; transferSizes?: SizePriceOption[]; placements?: Array<{ placement: { code: string } }> };
 type UploadTemplate = { id: string; code: string; name: string; customizationType?: UploadMode; requiredImageCount: number; allowsText?: boolean; textLabel?: string; placement?: { code: string }; sizeOptions?: SizePriceOption[] };
 type BrandLogo = { id: string; name: string; code: string; imageUrl: string; widthCm: number; heightCm: number; placements?: Array<{ placement: { code: string } }>; colors?: Array<{ colorId: string; color?: { id: string; name: string; hex: string } }> };
 type Catalog = { categories: Array<{ id: string; name: string; garmentModels?: Product[] }>; designCategories?: Array<{ id: string; name: string; code: string }>; collections: Array<{ id: string; name: string; designs?: Design[] }>; uploadTemplates: UploadTemplate[]; brandLogos?: BrandLogo[] };
-type Config = { valid: boolean; price: number; basePrice: number; extraPrice: number; configurationCode: string; allowedLogoPlacements: Array<{ code: string; name: string }> };
+type Config = { valid: boolean; price: number; basePrice: number; extraPrice: number; configurationCode: string; allowedLogoPlacements: Array<{ code: string; name: string }>; stock: { blank: number; transfer: number | null } };
 type CartResponse = { totalItems: number };
 type UploadedAsset = { id: string; name: string; width: number; height: number; previewUrl: string };
 
@@ -106,6 +107,25 @@ function logoOptionLabel(code: string, name?: string) {
 
 function formatImageRequirement(count: number) {
   return `${count} imagen${count === 1 ? '' : 'es'}`;
+}
+
+function readStockConflictMessage(productName: string | undefined, stock: { blank: number; transfer: number | null }) {
+  const missingGarment = stock.blank <= 0;
+  const missingTransfer = stock.transfer !== null && stock.transfer <= 0;
+
+  if (missingGarment && missingTransfer) {
+    return `No hay stock de ${productName || 'la prenda'} ni de la estampa seleccionada. Cambiá la remera o el tamaño de estampa.`;
+  }
+
+  if (missingGarment) {
+    return `No hay stock de ${productName || 'la prenda'} para ese talle y color. Cambiá la remera.`;
+  }
+
+  if (missingTransfer) {
+    return 'No hay stock de la estampa en ese tamaño. Cambiá el tamaño de estampa.';
+  }
+
+  return 'Esta combinación no está disponible.';
 }
 
 function collageCellStyle(count: number, index: number): React.CSSProperties {
@@ -295,6 +315,16 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   }, [customMode, selectedDesign, uploadTemplatesForView, filteredUploadTemplates]);
   const selectedTransferSize = transferSizeOptions.find((item) => item.sizeCode === selectedTransferSizeCode) || transferSizeOptions[0] || null;
   const selectedColorOption = selectedProduct?.colors?.find((item) => item.colorId === selectedColorId) || null;
+  const availableSizeIds = useMemo(
+    () => new Set((selectedProduct?.blankStocks || []).filter((item) => item.colorId === selectedColorId && item.quantity > 0).map((item) => item.sizeId)),
+    [selectedProduct, selectedColorId]
+  );
+  const hasAnyAvailableGarmentSize = availableSizeIds.size > 0;
+  const availableTransferSizeCodes = useMemo(
+    () => new Set(transferSizeOptions.filter((item) => !('stock' in item) || typeof item.stock !== 'number' || item.stock > 0).map((item) => item.sizeCode)),
+    [transferSizeOptions]
+  );
+  const hasAnyAvailableTransferSize = availableTransferSizeCodes.size > 0;
   const productPrintPlacementCodes = useMemo(
     () => Array.from(new Set((selectedProduct?.printAreas || []).map((item) => item.placement.code).filter(Boolean))),
     [selectedProduct]
@@ -305,18 +335,17 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
     ? (selectedTemplate?.requiredImageCount ?? (selectedUploadMode === 'photo_simple' ? 1 : uploadCountOptions[0] || 0))
     : 0;
   const hasRequiredUploads = customMode !== 'user_upload' || (requiredAssetCount > 0 && uploadedAssets.length === requiredAssetCount);
+  const hasStockConflict = hasResolvedConfiguration && !isValid;
   const customizerDisabledReason = !session
     ? null
     : saving
       ? 'Estamos guardando tu configuración.'
       : customMode === 'user_upload' && !selectedTemplate
         ? `Subí ${selectedUploadMode === 'photo_simple' ? 'tu imagen' : formatImageRequirement(uploadCountOptions[0] || 1)} para continuar.`
-      : hasResolvedConfiguration && !isValid
-        ? stockValidationMessage || 'Esta combinación no está disponible.'
-        : customMode === 'user_upload' && !hasRequiredUploads
+      : customMode === 'user_upload' && !hasRequiredUploads
           ? `Subí ${formatImageRequirement(requiredAssetCount)} para continuar.`
           : null;
-  const customizerActionDisabled = Boolean(customizerDisabledReason);
+  const customizerActionDisabled = hasStockConflict || Boolean(customizerDisabledReason);
   const selectedModeLabel = customMode === 'brand_design' ? 'De la casa' : 'Modo creador';
   const selectedContentLabel = customMode === 'brand_design'
     ? (selectedDesign ? `${selectedDesign.code} · ${selectedDesign.name}` : 'Elegí una estampa')
@@ -363,13 +392,15 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
 
   useEffect(() => {
     if (!selectedProduct) return;
-    if (!selectedProduct.sizes?.some((item) => item.sizeId === selectedSizeId)) {
-      setSelectedSizeId(selectedProduct.sizes?.[0]?.sizeId || '');
+    const sizeIds = (selectedProduct.sizes || []).map((item) => item.sizeId);
+    const firstAvailableSizeId = (selectedProduct.sizes || []).find((item) => availableSizeIds.has(item.sizeId))?.sizeId || '';
+    if (!sizeIds.includes(selectedSizeId) || (selectedSizeId && !availableSizeIds.has(selectedSizeId))) {
+      setSelectedSizeId(firstAvailableSizeId);
     }
     if (!selectedProduct.colors?.some((item) => item.colorId === selectedColorId)) {
       setSelectedColorId(selectedProduct.colors?.[0]?.colorId || '');
     }
-  }, [selectedProduct, selectedSizeId, selectedColorId]);
+  }, [selectedProduct, selectedSizeId, selectedColorId, availableSizeIds]);
 
   useEffect(() => {
     if (!productPrintPlacementCodes.length) return;
@@ -378,9 +409,15 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   }, [productPrintPlacementCodes, selectedPlacementCode]);
 
   useEffect(() => {
-    const firstSize = transferSizeOptions[0]?.sizeCode;
-    if (firstSize && !transferSizeOptions.some((item) => item.sizeCode === selectedTransferSizeCode)) setSelectedTransferSizeCode(firstSize);
-  }, [transferSizeOptions, selectedTransferSizeCode]);
+    const firstAvailableTransferSizeCode = transferSizeOptions.find((item) => availableTransferSizeCodes.has(item.sizeCode))?.sizeCode || '';
+    if (!firstAvailableTransferSizeCode) {
+      setSelectedTransferSizeCode('');
+      return;
+    }
+    if (!transferSizeOptions.some((item) => item.sizeCode === selectedTransferSizeCode) || !availableTransferSizeCodes.has(selectedTransferSizeCode)) {
+      setSelectedTransferSizeCode(firstAvailableTransferSizeCode);
+    }
+  }, [transferSizeOptions, selectedTransferSizeCode, availableTransferSizeCodes]);
 
   useEffect(() => {
     if (!filteredUploadTemplates.length) return;
@@ -460,7 +497,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
         setTransferExtraPrice(response.data.extraPrice || 0);
         setIsValid(response.data.valid);
         setHasResolvedConfiguration(true);
-        setStockValidationMessage(response.data.valid ? null : 'No hay stock disponible para esta combinación.');
+        setStockValidationMessage(response.data.valid ? null : readStockConflictMessage(selectedProduct.name, response.data.stock));
         setConfigurationCode(response.data.configurationCode);
         setAllowedLogoPlacements(response.data.allowedLogoPlacements || []);
         if (!response.data.allowedLogoPlacements.some((item) => item.code === logoPlacementCode)) setLogoPlacementCode(response.data.allowedLogoPlacements[0]?.code || logoPlacementCode);
@@ -740,10 +777,14 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
           <div className="mb-3 mt-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Talles disponibles</p>
             <div className="flex flex-wrap gap-3">
-              {(selectedProduct?.sizes || []).map((item) => <button key={item.sizeId} onClick={() => setSelectedSizeId(item.sizeId)} className={`min-w-12 rounded-2xl border px-4 py-3 text-sm font-bold uppercase tracking-[0.08em] transition ${selectedSizeId === item.sizeId ? 'border-[#111827] bg-[#111827] text-white' : 'border-gray-200 bg-white text-gray-800'}`} style={{ fontFamily: 'var(--font-body)' }}>{item.size.name}</button>)}
+              {(selectedProduct?.sizes || []).map((item) => {
+                const disabled = !availableSizeIds.has(item.sizeId);
+                return <button key={item.sizeId} disabled={disabled} onClick={() => setSelectedSizeId(item.sizeId)} className={`min-w-12 rounded-2xl border px-4 py-3 text-sm font-bold uppercase tracking-[0.08em] transition ${selectedSizeId === item.sizeId ? 'border-[#111827] bg-[#111827] text-white' : 'border-gray-200 bg-white text-gray-800'} ${disabled ? 'cursor-not-allowed opacity-40' : ''}`} style={{ fontFamily: 'var(--font-body)' }}>{item.size.name}</button>;
+              })}
             </div>
+            {!hasAnyAvailableGarmentSize ? <p className="mt-3 text-sm text-rose-600">No hay stock de {selectedProduct?.name?.toLowerCase() || 'la prenda'} para el color elegido.</p> : null}
           </div>
-          <button disabled={!selectedSizeId} onClick={() => setScreen('selection')} className="w-full rounded-2xl bg-[#111827] px-6 py-3.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:opacity-50" style={{ fontFamily: 'var(--font-heading)' }}>Continuar</button>
+          <button disabled={!selectedSizeId || !hasAnyAvailableGarmentSize} onClick={() => setScreen('selection')} className="w-full rounded-2xl bg-[#111827] px-6 py-3.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:opacity-50" style={{ fontFamily: 'var(--font-heading)' }}>Continuar</button>
         </div>
         <aside className="absolute right-4 top-[45%] z-40 hidden -translate-y-1/2 md:flex lg:right-6">
           <div className="flex flex-col gap-3 rounded-[28px] border border-black/10 bg-white/92 p-3 shadow-xl backdrop-blur-md">
@@ -833,7 +874,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
       <aside className="absolute right-4 top-4 z-50 lg:right-6 lg:top-6">
         <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} cartCount={cartCount} tone="dark" />
       </aside>
-      <aside className="absolute left-4 top-28 z-40 hidden w-[200px] flex-col gap-3 lg:flex"><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Selección</p><p className={`mt-3 text-sm font-semibold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>{selectedModeLabel}</p><p className={`mt-1 text-sm line-clamp-2 ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>{selectedContentLabel}</p></div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Tamaño</p><div className="mt-3 flex flex-col gap-2">{transferSizeOptions.map((item) => <button key={item.id} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-2xl px-4 py-3 text-left text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'bg-white text-[#113f27] border border-black/10' : isDarkGarment ? 'bg-black/[0.05] text-[#111827] border border-black/10' : 'bg-white/10 text-white'}`}>{formatTransferSize(item.sizeCode)}</button>)}</div></div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Logo</p><p className={`mt-2 text-xs ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Elegí una ubicación compatible.</p>{logoAutoNotice ? <p className={`mt-3 rounded-2xl px-3 py-2 text-xs leading-5 ${isDarkGarment ? 'bg-black/[0.05] text-[#111827]' : 'bg-white/12 text-white'}`}>{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-col gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-2xl px-4 py-3 text-left text-sm font-semibold ${logoPlacementCode === item.code ? 'bg-white text-[#113f27] border border-black/10' : isDarkGarment ? 'bg-black/[0.05] text-[#111827] border border-black/10' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></aside>
+      <aside className="absolute left-4 top-28 z-40 hidden w-[200px] flex-col gap-3 lg:flex"><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Selección</p><p className={`mt-3 text-sm font-semibold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>{selectedModeLabel}</p><p className={`mt-1 text-sm line-clamp-2 ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>{selectedContentLabel}</p></div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Tamaño</p><div className="mt-3 flex flex-col gap-2">{transferSizeOptions.map((item) => { const disabled = !availableTransferSizeCodes.has(item.sizeCode); return <button key={item.id} disabled={disabled} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-2xl px-4 py-3 text-left text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'bg-white text-[#113f27] border border-black/10' : isDarkGarment ? 'bg-black/[0.05] text-[#111827] border border-black/10' : 'bg-white/10 text-white'} ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}>{formatTransferSize(item.sizeCode)}</button>; })}</div>{!hasAnyAvailableTransferSize ? <p className={`mt-3 text-xs ${isDarkGarment ? 'text-rose-600' : 'text-rose-200'}`}>No hay stock de estampa para este diseño.</p> : null}</div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Logo</p><p className={`mt-2 text-xs ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Elegí una ubicación compatible.</p>{logoAutoNotice ? <p className={`mt-3 rounded-2xl px-3 py-2 text-xs leading-5 ${isDarkGarment ? 'bg-black/[0.05] text-[#111827]' : 'bg-white/12 text-white'}`}>{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-col gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-2xl px-4 py-3 text-left text-sm font-semibold ${logoPlacementCode === item.code ? 'bg-white text-[#113f27] border border-black/10' : isDarkGarment ? 'bg-black/[0.05] text-[#111827] border border-black/10' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></aside>
       <main className="relative z-10 flex flex-1 items-start justify-center px-4 pb-[22rem] pt-24 sm:pb-[18rem] lg:pb-[8rem] lg:pt-20">
         <div className="flex w-full max-w-[760px] items-center justify-center gap-3 sm:gap-5 lg:max-w-[980px]">
           {renderCustomizerMockup('front')}
@@ -841,7 +882,7 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
         </div>
       </main>
       <aside className="absolute right-4 top-[45%] z-50 hidden -translate-y-[80%] flex-col gap-6 lg:right-6 lg:flex">{customMode === 'brand_design' || (customMode === 'user_upload' && uploadPlacementCodes.length > 1) ? <div className={`flex flex-col gap-1 rounded-3xl p-2 shadow-xl backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/95' : 'border border-white/30 bg-white/15'}`}><button onClick={() => setSelectedView('front')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'front' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'text-[#111827]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-xl px-2 py-4 text-sm font-semibold ${selectedView === 'back' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'text-[#111827]' : 'text-white/60'}`} style={{ writingMode: 'vertical-rl' }}>Espalda</button></div> : <div className={`rounded-3xl px-4 py-6 text-center text-sm font-semibold shadow-xl backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/95 text-[#111827]' : 'border border-white/30 bg-white/15 text-white'}`}>{selectedTemplate?.placement?.code === 'BACK' ? 'Espalda' : 'Frente'}</div>}</aside>
-      <div className="absolute bottom-[9.75rem] left-4 right-4 z-30 space-y-3 lg:hidden"><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}>{customMode === 'brand_design' || (customMode === 'user_upload' && uploadPlacementCodes.length > 1) ? <><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Vista</p><div className="mt-3 flex gap-2"><button onClick={() => setSelectedView('front')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'front' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'back' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>Espalda</button></div></> : <p className={`text-sm font-semibold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>{selectedTemplate?.placement?.code === 'BACK' ? 'Vista espalda' : 'Vista frente'}</p>}</div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Tamaño</p><div className="mt-3 flex flex-wrap gap-2">{transferSizeOptions.map((item) => <button key={item.id} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>{formatTransferSize(item.sizeCode)}</button>)}</div></div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Logo</p>{logoAutoNotice ? <p className={`mt-2 rounded-2xl px-3 py-2 text-xs leading-5 ${isDarkGarment ? 'bg-black/[0.05] text-[#111827]' : 'bg-white/12 text-white'}`}>{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-full px-4 py-2 text-sm font-semibold ${logoPlacementCode === item.code ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></div>
+      <div className="absolute bottom-[9.75rem] left-4 right-4 z-30 space-y-3 lg:hidden"><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}>{customMode === 'brand_design' || (customMode === 'user_upload' && uploadPlacementCodes.length > 1) ? <><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Vista</p><div className="mt-3 flex gap-2"><button onClick={() => setSelectedView('front')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'front' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>Frente</button><button onClick={() => setSelectedView('back')} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedView === 'back' ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>Espalda</button></div></> : <p className={`text-sm font-semibold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>{selectedTemplate?.placement?.code === 'BACK' ? 'Vista espalda' : 'Vista frente'}</p>}</div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Tamaño</p><div className="mt-3 flex flex-wrap gap-2">{transferSizeOptions.map((item) => { const disabled = !availableTransferSizeCodes.has(item.sizeCode); return <button key={item.id} disabled={disabled} onClick={() => setSelectedTransferSizeCode(item.sizeCode)} className={`rounded-full px-4 py-2 text-sm font-semibold ${selectedTransferSizeCode === item.sizeCode ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'} ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}>{formatTransferSize(item.sizeCode)}</button>; })}</div>{!hasAnyAvailableTransferSize ? <p className={`mt-3 text-xs ${isDarkGarment ? 'text-rose-600' : 'text-rose-200'}`}>No hay stock de estampa para este diseño.</p> : null}</div><div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Logo</p>{logoAutoNotice ? <p className={`mt-2 rounded-2xl px-3 py-2 text-xs leading-5 ${isDarkGarment ? 'bg-black/[0.05] text-[#111827]' : 'bg-white/12 text-white'}`}>{logoAutoNotice}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{visibleLogoOptions.map((item) => <button key={item.code} onClick={() => setLogoPlacementCode(item.code)} className={`rounded-full px-4 py-2 text-sm font-semibold ${logoPlacementCode === item.code ? 'border border-black/10 bg-white text-[#113f27]' : isDarkGarment ? 'border border-black/10 bg-black/[0.05] text-[#111827]' : 'bg-white/10 text-white'}`}>{logoOptionLabel(item.code, item.name)}</button>)}</div></div></div>
       <div className="relative z-30 mt-auto flex w-full max-w-[760px] flex-col overflow-hidden rounded-t-[34px] bg-white px-5 py-3 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] lg:absolute lg:bottom-0 lg:left-1/2 lg:w-[92vw] lg:max-w-[760px] lg:-translate-x-1/2 lg:flex-row lg:rounded-t-[40px] lg:px-6 lg:py-3"><div className="min-w-0 flex flex-1 flex-col justify-center pr-0 lg:pr-6"><h3 className="mb-1 text-lg font-bold text-[#111827]">Composición final</h3><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedModeLabel}</span><span className="max-w-full truncate rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700">{selectedContentLabel}</span><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedView === 'front' ? 'Editando frente' : 'Editando espalda'}</span></div><p className="mt-2 text-xs text-gray-500">Tamaño {formatTransferSize(selectedTransferSizeCode)} · Logo {logoOptionLabel(logoPlacementCode)}</p></div><div className="mt-3 flex w-full flex-col justify-between border-t border-gray-100 pt-3 lg:mt-0 lg:w-[250px] lg:flex-none lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0"><div><p className="text-sm text-gray-500">Total estimado</p><h3 className="text-3xl font-bold text-[#111827]">{formatMoney(price)}</h3><p className="mt-1 break-all text-xs text-gray-500">{configurationCode || 'Configuración pendiente'}</p>{stockValidationMessage ? <p className={`mt-1 text-xs ${hasResolvedConfiguration && !isValid ? 'text-red-500' : 'text-amber-600'}`}>{stockValidationMessage}</p> : null}</div>{session ? <><button disabled={customizerActionDisabled} onClick={() => void addToCart()} className="mt-3 w-full rounded-xl bg-[#111827] p-3 font-bold text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Comprar ahora'}</button>{customizerDisabledReason ? <p className="mt-2 text-xs text-amber-700">{customizerDisabledReason}</p> : null}</> : null}{saveError && <p className="mt-2 text-sm text-rose-600">{saveError}</p>}</div></div>
     </section>
   );

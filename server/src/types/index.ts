@@ -62,6 +62,7 @@ export interface GarmentModel {
   backMockupUrl?: string | null;
   sizes?: GarmentModelSize[];
   colors?: GarmentModelColor[];
+  blankStocks?: BlankStock[];
   printAreas?: PrintArea[];
 }
 

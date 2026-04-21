@@ -104,6 +104,7 @@ export class CatalogService {
             include: {
               sizes: { include: { size: true } },
               colors: { include: { color: true } },
+              blankStocks: true,
               printAreas: { include: { placement: true } },
               category: true,
             },
@@ -240,6 +241,7 @@ export class CatalogService {
         category: true,
         sizes: { include: { size: true } },
         colors: { include: { color: true } },
+        blankStocks: true,
         printAreas: { include: { placement: true } },
       },
     });
