@@ -1,8 +1,5 @@
-import { handleRequest } from '../_handler.js';
+import { handleSegmentRequest } from '../_segment_handler.js';
 
 export default function handler(req: any, res: any) {
-  if (typeof req.url === 'string' && !req.url.startsWith('/api/auth')) {
-    req.url = `/api/auth${req.url.startsWith('/') ? req.url : `/${req.url}`}`;
-  }
-  return handleRequest(req, res);
+  return handleSegmentRequest('/auth', req, res);
 }
