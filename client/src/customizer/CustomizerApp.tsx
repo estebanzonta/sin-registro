@@ -1,12 +1,14 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { ChevronLeft, ChevronRight, ShoppingCart, UploadCloud } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import logoAssetUrl from '../assets/Logo.svg';
+import { ChevronLeft, ChevronRight, UploadCloud } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { AppSession } from '../App';
-import StorefrontTopBar from '../storefront/StorefrontTopBar';
 import { isAuthError, readFriendlyApiError } from '../lib/apiErrors';
 import { getCatalogInit } from '../lib/catalogCache';
+import ModeScreen from './screens/ModeScreen';
+import ProductScreen from './screens/ProductScreen';
+import SelectionScreen from './screens/SelectionScreen';
+import CustomizerScreen from './screens/CustomizerScreen';
 
 type Screen = 'product' | 'mode' | 'selection' | 'customizer';
 type CustomMode = 'brand_design' | 'user_upload';
@@ -831,148 +833,154 @@ export default function CustomizerApp({ session, onCartCountChange, onSessionCha
   }
 
   function renderProductScreen() {
+    const sizeSelector = (
+      <div className="mb-3 mt-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Talles disponibles</p>
+        <div className="flex flex-wrap gap-3">
+          {(selectedProduct?.sizes || []).map((item) => {
+            const disabled = !availableSizeIds.has(item.sizeId);
+            return <button key={item.sizeId} disabled={disabled} onClick={() => setSelectedSizeId(item.sizeId)} className={`min-w-12 rounded-2xl border px-4 py-3 text-sm font-bold uppercase tracking-[0.08em] transition ${selectedSizeId === item.sizeId ? 'border-[#111827] bg-[#111827] text-white' : 'border-gray-200 bg-white text-gray-800'} ${disabled ? 'cursor-not-allowed opacity-40' : ''}`} style={{ fontFamily: 'var(--font-body)' }}>{item.size.name}</button>;
+          })}
+        </div>
+        {!hasAnyAvailableGarmentSize ? <p className="mt-3 text-sm text-rose-600">No hay stock de {selectedProduct?.name?.toLowerCase() || 'la prenda'} para el color elegido.</p> : null}
+      </div>
+    );
+    const colorDesktop = (
+      <div className="flex flex-col gap-3 rounded-[28px] border border-black/10 bg-white/92 p-3 shadow-xl backdrop-blur-md">
+        <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">Color</p>
+        <div className="flex flex-col gap-2">
+          {(selectedProduct?.colors || []).slice(0, 8).map((item) => (
+            <button
+              key={item.colorId}
+              type="button"
+              onClick={() => setSelectedColorId(item.colorId)}
+              className={`flex h-11 w-11 items-center justify-center rounded-full border border-black/10 ${selectedColorId === item.colorId ? 'ring-4 ring-gray-900' : ''}`}
+              style={{ backgroundColor: item.color.hex || '#ffffff' }}
+              aria-label={item.color.name}
+              title={item.color.name}
+            />
+          ))}
+        </div>
+        <p className="px-1 text-xs font-medium text-gray-500">{selectedColorOption?.color.name || 'Sin color'}</p>
+      </div>
+    );
+    const colorMobile = (
+      <div className="rounded-3xl border border-black/10 bg-white/90 p-4 shadow-lg backdrop-blur-md">
+        <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Color</p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {(selectedProduct?.colors || []).slice(0, 8).map((item) => (
+            <button
+              key={item.colorId}
+              type="button"
+              onClick={() => setSelectedColorId(item.colorId)}
+              className={`h-10 w-10 rounded-full border border-black/10 ${selectedColorId === item.colorId ? 'ring-4 ring-gray-900' : ''}`}
+              style={{ backgroundColor: item.color.hex || '#ffffff' }}
+              aria-label={item.color.name}
+            />
+          ))}
+        </div>
+        <p className="mt-3 text-sm text-gray-500">{selectedColorOption?.color.name || 'Sin color disponible'}</p>
+      </div>
+    );
+
     return (
-      <section className="relative flex h-screen flex-col overflow-hidden bg-black">
-        <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('mode')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
-        <div className="relative flex flex-1 items-center justify-center px-4 pb-[34vh] sm:px-8 lg:px-16">
-          <button type="button" onClick={() => cycleProduct('prev')} disabled={products.length < 2} className="absolute left-4 top-1/2 z-30 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/95 text-gray-700 shadow-lg transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40 sm:left-6 lg:left-[10%] lg:h-16 lg:w-16">
-            <ChevronLeft size={28} />
-          </button>
-          <img src={currentImage} alt="Model" className="relative z-10 max-h-[50vh] max-w-[82%] translate-y-8 object-contain drop-shadow-2xl sm:max-w-[74%] lg:max-w-[62%]" />
-          <button type="button" onClick={() => cycleProduct('next')} disabled={products.length < 2} className="absolute right-4 top-1/2 z-30 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/95 text-gray-700 shadow-lg transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40 sm:right-6 lg:right-[10%] lg:h-16 lg:w-16">
-            <ChevronRight size={28} />
-          </button>
-        </div>
-        <div className="absolute bottom-0 left-1/2 z-20 flex min-h-[24vh] w-full max-w-[600px] -translate-x-1/2 flex-col rounded-t-[40px] bg-white px-6 pb-4 pt-4 shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">Indumentaria</p>
-              <h2 className="mt-2 text-[1.9rem] font-extrabold uppercase leading-none tracking-[0.06em] text-[#111827]" style={{ fontFamily: 'var(--font-heading)' }}>{selectedProduct?.name || 'REMERA OVERSIZE'}</h2>
-              <p className="mt-2 text-sm text-gray-500">{selectedProduct?.description || 'Remera de corte amplio y relajado.'}</p>
-            </div>
-            {products.length > 1 ? <p className="shrink-0 text-sm font-medium text-gray-400">{(products.findIndex((item) => item.id === selectedProduct?.id) + 1) || 1} / {products.length}</p> : null}
-          </div>
-          <div className="mb-3 mt-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Talles disponibles</p>
-            <div className="flex flex-wrap gap-3">
-              {(selectedProduct?.sizes || []).map((item) => {
-                const disabled = !availableSizeIds.has(item.sizeId);
-                return <button key={item.sizeId} disabled={disabled} onClick={() => setSelectedSizeId(item.sizeId)} className={`min-w-12 rounded-2xl border px-4 py-3 text-sm font-bold uppercase tracking-[0.08em] transition ${selectedSizeId === item.sizeId ? 'border-[#111827] bg-[#111827] text-white' : 'border-gray-200 bg-white text-gray-800'} ${disabled ? 'cursor-not-allowed opacity-40' : ''}`} style={{ fontFamily: 'var(--font-body)' }}>{item.size.name}</button>;
-              })}
-            </div>
-            {!hasAnyAvailableGarmentSize ? <p className="mt-3 text-sm text-rose-600">No hay stock de {selectedProduct?.name?.toLowerCase() || 'la prenda'} para el color elegido.</p> : null}
-          </div>
-          <button disabled={!selectedSizeId || !hasAnyAvailableGarmentSize} onClick={() => setScreen('selection')} className="w-full rounded-2xl bg-[#111827] px-6 py-3.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:opacity-50" style={{ fontFamily: 'var(--font-heading)' }}>Continuar</button>
-        </div>
-        <aside className="absolute right-4 top-[45%] z-40 hidden -translate-y-1/2 md:flex lg:right-6">
-          <div className="flex flex-col gap-3 rounded-[28px] border border-black/10 bg-white/92 p-3 shadow-xl backdrop-blur-md">
-            <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">Color</p>
-            <div className="flex flex-col gap-2">
-            {(selectedProduct?.colors || []).slice(0, 8).map((item) => (
-              <button
-                key={item.colorId}
-                type="button"
-                onClick={() => setSelectedColorId(item.colorId)}
-                className={`flex h-11 w-11 items-center justify-center rounded-full border border-black/10 ${selectedColorId === item.colorId ? 'ring-4 ring-gray-900' : ''}`}
-                style={{ backgroundColor: item.color.hex || '#ffffff' }}
-                aria-label={item.color.name}
-                title={item.color.name}
-              />
-            ))}
-            </div>
-            <p className="px-1 text-xs font-medium text-gray-500">{selectedColorOption?.color.name || 'Sin color'}</p>
-          </div>
-        </aside>
-        <div className="absolute bottom-[12.5rem] left-4 right-4 z-30 md:hidden">
-          <div className="rounded-3xl border border-black/10 bg-white/90 p-4 shadow-lg backdrop-blur-md">
-            <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Color</p>
-            <div className="mt-3 flex flex-wrap gap-3">
-              {(selectedProduct?.colors || []).slice(0, 8).map((item) => (
-                <button
-                  key={item.colorId}
-                  type="button"
-                  onClick={() => setSelectedColorId(item.colorId)}
-                  className={`h-10 w-10 rounded-full border border-black/10 ${selectedColorId === item.colorId ? 'ring-4 ring-gray-900' : ''}`}
-                  style={{ backgroundColor: item.color.hex || '#ffffff' }}
-                  aria-label={item.color.name}
-                />
-              ))}
-            </div>
-            <p className="mt-3 text-sm text-gray-500">{selectedColorOption?.color.name || 'Sin color disponible'}</p>
-          </div>
-        </div>
-      </section>
+      <ProductScreen
+        currentImage={currentImage}
+        productName={selectedProduct?.name || 'REMERA OVERSIZE'}
+        productDescription={selectedProduct?.description || 'Remera de corte amplio y relajado.'}
+        productIndex={(products.findIndex((item) => item.id === selectedProduct?.id) + 1) || 1}
+        productsCount={products.length}
+        sizeSelector={sizeSelector}
+        colorDesktop={colorDesktop}
+        colorMobile={colorMobile}
+        canContinue={Boolean(selectedSizeId) && hasAnyAvailableGarmentSize}
+        onBack={() => setScreen('mode')}
+        onPrev={() => cycleProduct('prev')}
+        onNext={() => cycleProduct('next')}
+        onContinue={() => setScreen('selection')}
+      />
     );
   }
 
   function renderModeScreen() {
     return (
-      <section className="flex min-h-screen flex-col items-center justify-center bg-black p-8 text-white relative">
-        <div className="fixed top-[18%] left-1/2 -translate-x-1/2 opacity-70 pointer-events-none" style={{ width: '40vw' }}>
-          <img src={logoAssetUrl} alt="Logo" className="w-full h-auto mx-auto" />
-        </div>
-        <header className="absolute top-0 z-10 flex w-full justify-between p-6">
-          <div className="h-11 w-11" />
-          <Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg text-black"><ShoppingCart /></Link>
-        </header>
-        <div className="mb-8 text-center relative z-10 mt-28">
-          <p className="opacity-80 text-base font-medium" style={{ fontFamily: 'var(--font-body)' }}>Elegí como queres vestirte hoy</p>
-        </div>
-        <div className="flex w-full max-w-2xl gap-8 relative z-10">
-          <button
-            onClick={() => { setCustomMode('brand_design'); setScreen('product'); }}
-            className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold"
-            style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}
-          >
-            DE LA CASA
-          </button>
-          <button
-            onClick={() => { setCustomMode('user_upload'); setScreen('product'); }}
-            className="flex h-48 flex-1 items-center justify-center rounded-2xl bg-white/5 text-2xl tracking-widest font-extrabold"
-            style={{ fontFamily: 'var(--font-heading)', color: '#ffffff' }}
-          >
-            MODO CREADOR
-          </button>
-        </div>
-      </section>
+      <ModeScreen
+        onSelectBrandDesign={() => { setCustomMode('brand_design'); setScreen('product'); }}
+        onSelectUserUpload={() => { setCustomMode('user_upload'); setScreen('product'); }}
+      />
     );
   }
 
   function renderSelectionScreen() {
+    const body = customMode === 'brand_design'
+      ? renderBrandDesignPicker()
+      : <div className="mt-6 space-y-6"><div><div className="flex flex-wrap gap-4">{(['photo_simple', 'photo_collage', 'pets'] as UploadMode[]).map((mode) => <button key={mode} onClick={() => { setSelectedUploadMode(mode); setUploadedAssets([]); setUploadError(null); setCustomText(''); }} className={`px-2 py-1 text-sm font-bold uppercase transition-colors ${selectedUploadMode === mode ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`} style={{ fontFamily: 'var(--font-heading)' }}>{uploadModeLabel(mode)}</button>)}</div></div><div><h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">{selectedUploadMode === 'photo_simple' ? 'Foto' : 'Archivos'}</h3><label className="flex min-h-56 cursor-pointer items-center justify-center rounded-lg bg-gray-50 text-gray-400"><div className="text-center"><UploadCloud size={36} className="mx-auto" /><p className="mt-3 text-sm font-medium text-gray-700">{selectedUploadMode === 'photo_simple' ? 'Subí tu imagen' : 'Subí tus imágenes'}</p><p className="mt-1 text-xs text-gray-500">PNG, JPG o WEBP. Permitidas: {selectedUploadMode === 'photo_simple' ? '1' : formatCountList(uploadCountOptions)} imagen{selectedUploadMode === 'photo_simple' || uploadCountOptions.every((count) => count === 1) ? '' : 'es'}</p></div><input type="file" multiple={selectedUploadMode !== 'photo_simple'} className="hidden" onChange={handleFileUpload} /></label>{uploadError && <p className="mt-2 text-sm text-rose-600">{uploadError}</p>}{uploadedAssets.length ? <p className="mt-2 text-sm text-gray-600">{uploadedAssets.length} archivo(s) listo(s).</p> : null}{inputAllowsText ? <input className="mt-4 w-full rounded-xl bg-gray-50 p-3" value={customText} onChange={(event) => setCustomText(event.target.value)} placeholder={inputTextLabel} /> : null}</div></div>;
+    const footerText = customMode === 'brand_design'
+      ? (selectedDesign ? `Seleccionado: ${selectedDesign.name}` : 'Elegí una estampa para continuar.')
+      : selectedTemplate && hasRequiredUploads
+        ? `Contenido listo: ${selectedContentLabel}`
+        : `Subí ${selectedUploadMode === 'photo_simple' ? '1 imagen' : `${formatCountList(uploadCountOptions)} imágenes`} para continuar.`;
+
     return (
-      <section className="relative flex min-h-screen flex-col overflow-hidden bg-black">
-        <header className="absolute top-0 z-10 flex w-full justify-between p-6"><button onClick={() => setScreen('product')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ChevronLeft /></button><Link to="/cart" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-lg"><ShoppingCart /></Link></header>
-        <div className="flex flex-1 items-center justify-center px-4 pb-10 pt-28"><div className="w-full max-w-5xl rounded-lg bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.22)] lg:p-8"><h2 className="text-3xl font-extrabold text-[#111827]">{customMode === 'brand_design' ? 'Elegí el diseño de la marca' : 'Elegí tu contenido personalizado'}</h2><p className="mt-2 text-sm text-gray-500">{customMode === 'brand_design' ? 'Seleccioná la estampa que querés aplicar antes de pasar al mockup.' : 'Subí tus imágenes. El tamaño, la cara de la prenda, el color y el logo se eligen en la siguiente pantalla.'}</p>{customMode === 'brand_design' ? renderBrandDesignPicker() : <div className="mt-6 space-y-6"><div><div className="flex flex-wrap gap-4">{(['photo_simple', 'photo_collage', 'pets'] as UploadMode[]).map((mode) => <button key={mode} onClick={() => { setSelectedUploadMode(mode); setUploadedAssets([]); setUploadError(null); setCustomText(''); }} className={`px-2 py-1 text-sm font-bold uppercase transition-colors ${selectedUploadMode === mode ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`} style={{ fontFamily: 'var(--font-heading)' }}>{uploadModeLabel(mode)}</button>)}</div></div><div><h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">{selectedUploadMode === 'photo_simple' ? 'Foto' : 'Archivos'}</h3><label className="flex min-h-56 cursor-pointer items-center justify-center rounded-lg bg-gray-50 text-gray-400"><div className="text-center"><UploadCloud size={36} className="mx-auto" /><p className="mt-3 text-sm font-medium text-gray-700">{selectedUploadMode === 'photo_simple' ? 'Subí tu imagen' : 'Subí tus imágenes'}</p><p className="mt-1 text-xs text-gray-500">PNG, JPG o WEBP. Permitidas: {selectedUploadMode === 'photo_simple' ? '1' : formatCountList(uploadCountOptions)} imagen{selectedUploadMode === 'photo_simple' || uploadCountOptions.every((count) => count === 1) ? '' : 'es'}</p></div><input type="file" multiple={selectedUploadMode !== 'photo_simple'} className="hidden" onChange={handleFileUpload} /></label>{uploadError && <p className="mt-2 text-sm text-rose-600">{uploadError}</p>}{uploadedAssets.length ? <p className="mt-2 text-sm text-gray-600">{uploadedAssets.length} archivo(s) listo(s).</p> : null}{inputAllowsText ? <input className="mt-4 w-full rounded-xl bg-gray-50 p-3" value={customText} onChange={(event) => setCustomText(event.target.value)} placeholder={inputTextLabel} /> : null}</div></div>}<div className="mt-8 flex items-center justify-between gap-4 pt-6"><div className="text-sm text-gray-500">{customMode === 'brand_design' ? (selectedDesign ? `Seleccionado: ${selectedDesign.name}` : 'Elegí una estampa para continuar.') : selectedTemplate && hasRequiredUploads ? `Contenido listo: ${selectedContentLabel}` : `Subí ${selectedUploadMode === 'photo_simple' ? '1 imagen' : `${formatCountList(uploadCountOptions)} imágenes`} para continuar.`}</div><button disabled={(customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && (!selectedTemplate || !hasRequiredUploads))} onClick={() => setScreen('customizer')} className="rounded-md bg-[#111827] px-6 py-3 font-bold text-white disabled:opacity-50">Ir al mockup</button></div></div></div>
-      </section>
+      <SelectionScreen
+        title={customMode === 'brand_design' ? 'Elegí el diseño de la marca' : 'Elegí tu contenido personalizado'}
+        subtitle={customMode === 'brand_design' ? 'Seleccioná la estampa que querés aplicar antes de pasar al mockup.' : 'Subí tus imágenes. El tamaño, la cara de la prenda, el color y el logo se eligen en la siguiente pantalla.'}
+        body={body}
+        footerText={footerText}
+        proceedDisabled={(customMode === 'brand_design' && !selectedDesignId) || (customMode === 'user_upload' && (!selectedTemplate || !hasRequiredUploads))}
+        onBack={() => setScreen('product')}
+        onProceed={() => setScreen('customizer')}
+      />
     );
   }
 
   function renderCustomizerScreen() {
-    return (
-    <section className={`relative flex min-h-screen flex-col overflow-hidden lg:h-screen ${isDarkGarment ? 'bg-white' : 'bg-black'}`}>
-      <header className="absolute left-4 top-4 z-50 flex items-center gap-4 lg:left-6 lg:top-6"><button onClick={() => setScreen('selection')} className={`flex h-11 w-11 items-center justify-center rounded-xl shadow-lg ${isDarkGarment ? 'border border-black/10 bg-white text-[#111827]' : 'bg-white/90 text-[#111827]'}`}><ChevronLeft /></button><div><h1 className={`text-2xl font-bold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>Personalizar</h1><p className={`text-sm ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>{selectedProduct?.name}</p></div></header>
-      <aside className="absolute right-4 top-4 z-50 lg:right-6 lg:top-6">
-        <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} cartCount={cartCount} tone="dark" />
-      </aside>
+    const leftSidebar = (
       <aside className="absolute left-4 top-28 z-40 hidden w-[200px] flex-col gap-3 lg:flex">
         <div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}><p className={`text-xs uppercase tracking-[0.2em] ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>Selección</p><p className={`mt-3 text-sm font-semibold ${isDarkGarment ? 'text-[#111827]' : 'text-white'}`}>{selectedModeLabel}</p><p className={`mt-1 text-sm line-clamp-2 ${isDarkGarment ? 'text-gray-500' : 'text-white/70'}`}>{selectedContentLabel}</p></div>
         <div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}>{renderTransferSizeSelector('desktop')}</div>
         <div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-black/[0.05]' : 'border border-white/20 bg-white/12'}`}>{renderLogoPlacementSelector('desktop')}</div>
       </aside>
-      <main className="relative z-10 flex flex-1 items-start justify-center px-4 pb-[22rem] pt-24 sm:pb-[18rem] lg:pb-[8rem] lg:pt-20">
-        <div className="flex w-full max-w-[760px] items-center justify-center gap-3 sm:gap-5 lg:max-w-[980px]">
-          {renderCustomizerMockup('front')}
-          {renderCustomizerMockup('back')}
-        </div>
-      </main>
-      <aside className="absolute right-4 top-[45%] z-50 hidden -translate-y-[80%] flex-col gap-6 lg:right-6 lg:flex">{renderViewSelector('desktop')}</aside>
-      <div className="absolute bottom-[9.75rem] left-4 right-4 z-30 space-y-3 lg:hidden">
+    );
+    const mainContent = (
+      <div className="flex w-full max-w-[760px] items-center justify-center gap-3 sm:gap-5 lg:max-w-[980px]">
+        {renderCustomizerMockup('front')}
+        {renderCustomizerMockup('back')}
+      </div>
+    );
+    const mobileControls = (
+      <>
         {renderViewSelector('mobile')}
         <div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}>{renderTransferSizeSelector('mobile')}</div>
         <div className={`rounded-3xl p-4 backdrop-blur-md ${isDarkGarment ? 'border border-black/10 bg-white/92' : 'border border-white/20 bg-white/12'}`}>{renderLogoPlacementSelector('mobile')}</div>
-      </div>
-      <div className="relative z-30 mt-auto flex w-full max-w-[760px] flex-col overflow-hidden rounded-t-[34px] bg-white px-5 py-3 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] lg:absolute lg:bottom-0 lg:left-1/2 lg:w-[92vw] lg:max-w-[760px] lg:-translate-x-1/2 lg:flex-row lg:rounded-t-[40px] lg:px-6 lg:py-3"><div className="min-w-0 flex flex-1 flex-col justify-center pr-0 lg:pr-6"><h3 className="mb-1 text-lg font-bold text-[#111827]">Composición final</h3><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedModeLabel}</span><span className="max-w-full truncate rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700">{selectedContentLabel}</span><span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">{selectedView === 'front' ? 'Editando frente' : 'Editando espalda'}</span></div><p className="mt-2 text-xs text-gray-500">Tamaño {formatTransferSize(selectedTransferSizeCode)} · Logo {logoOptionLabel(logoPlacementCode)}</p></div><div className="mt-3 flex w-full flex-col justify-between border-t border-gray-100 pt-3 lg:mt-0 lg:w-[250px] lg:flex-none lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0"><div><p className="text-sm text-gray-500">Total estimado</p><h3 className="text-3xl font-bold text-[#111827]">{formatMoney(price)}</h3><p className="mt-1 break-all text-xs text-gray-500">{configurationCode || 'Configuración pendiente'}</p>{stockValidationMessage ? <p className={`mt-1 text-xs ${hasResolvedConfiguration && !isValid ? 'text-red-500' : 'text-amber-600'}`}>{stockValidationMessage}</p> : null}</div>{session ? <><button disabled={customizerActionDisabled} onClick={() => void addToCart()} className="mt-3 w-full rounded-xl bg-[#111827] p-3 font-bold text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Comprar ahora'}</button>{customizerDisabledReason ? <p className="mt-2 text-xs text-amber-700">{customizerDisabledReason}</p> : null}</> : null}{saveError && <p className="mt-2 text-sm text-rose-600">{saveError}</p>}</div></div>
-    </section>
+      </>
+    );
+    return (
+      <CustomizerScreen
+        isDarkGarment={isDarkGarment}
+        productName={selectedProduct?.name}
+        session={session}
+        cartCount={cartCount}
+        selectedModeLabel={selectedModeLabel}
+        selectedContentLabel={selectedContentLabel}
+        selectedViewLabel={selectedView === 'front' ? 'Editando frente' : 'Editando espalda'}
+        transferSummary={`Tamaño ${formatTransferSize(selectedTransferSizeCode)} · Logo ${logoOptionLabel(logoPlacementCode)}`}
+        totalPrice={formatMoney(price)}
+        configurationCode={configurationCode}
+        stockValidationMessage={stockValidationMessage}
+        isInvalid={hasResolvedConfiguration && !isValid}
+        saving={saving}
+        customizerActionDisabled={customizerActionDisabled}
+        customizerDisabledReason={customizerDisabledReason}
+        saveError={saveError}
+        leftSidebar={leftSidebar}
+        mainContent={mainContent}
+        desktopViewSelector={renderViewSelector('desktop')}
+        mobileControls={mobileControls}
+        onBack={() => setScreen('selection')}
+        onLogout={() => onSessionChange(null)}
+        onAddToCart={() => void addToCart()}
+      />
     );
   }
 
