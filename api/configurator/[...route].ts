@@ -1,4 +1,4 @@
-import { handleSegmentRequest } from '../_segment_handler.js';
+import { handleSegmentRequest } from '../../vercel-api/segment-handler.js';
 
 export default function handler(req: any, res: any) {
   return handleSegmentRequest('/configurator', req, res);
