@@ -1,4 +1,6 @@
 import type { Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { prisma } from '../db.js';
 import { catalogService } from '../services/catalog.service.js';
@@ -52,10 +54,12 @@ export const getGarmentModels = asyncHandler(async (_req: Request, res: Response
 
 export const createGarmentModel = asyncHandler(async (req: Request, res: Response) => {
   const { categoryId, name, slug, description, basePrice, frontMockupUrl, backMockupUrl, sizeIds, colorIds, colorMockups } = parseGarmentModelPayload(req.body, 'create');
+  const garmentModelId = randomUUID();
 
-  const model = await prisma.$transaction(async (tx) => {
-    const createdModel = await tx.garmentModel.create({
+  await prisma.$transaction([
+    prisma.garmentModel.create({
       data: {
+        id: garmentModelId,
         categoryId: categoryId as string,
         name,
         slug,
@@ -64,50 +68,47 @@ export const createGarmentModel = asyncHandler(async (req: Request, res: Respons
         frontMockupUrl,
         backMockupUrl,
       },
-    });
-
-    await tx.garmentModelSize.createMany({
+    }),
+    prisma.garmentModelSize.createMany({
       data: sizeIds.map((sizeId: string) => ({
-        garmentModelId: createdModel.id,
+        garmentModelId,
         sizeId,
       })),
       skipDuplicates: true,
-    });
-
-    await tx.garmentModelColor.createMany({
+    }),
+    prisma.garmentModelColor.createMany({
       data: colorIds.map((colorId: string) => {
         const colorMockup = Array.isArray(colorMockups) ? colorMockups.find((item: any) => item?.colorId === colorId) : null;
         return {
-          garmentModelId: createdModel.id,
+          garmentModelId,
           colorId,
           frontMockupUrl: colorMockup?.frontMockupUrl || null,
           backMockupUrl: colorMockup?.backMockupUrl || null,
         };
       }),
       skipDuplicates: true,
-    });
-
-    await tx.blankStock.createMany({
+    }),
+    prisma.blankStock.createMany({
       data: colorIds.flatMap((colorId: string) =>
         sizeIds.map((sizeId: string) => ({
-          garmentModelId: createdModel.id,
+          garmentModelId,
           colorId,
           sizeId,
           quantity: 0,
         }))
       ),
       skipDuplicates: true,
-    });
+    }),
+  ]);
 
-    return tx.garmentModel.findUniqueOrThrow({
-      where: { id: createdModel.id },
-      include: {
-        category: true,
-        sizes: { include: { size: true } },
-        colors: { include: { color: true } },
-        printAreas: { include: { placement: true } },
-      },
-    });
+  const model = await prisma.garmentModel.findUniqueOrThrow({
+    where: { id: garmentModelId },
+    include: {
+      category: true,
+      sizes: { include: { size: true } },
+      colors: { include: { color: true } },
+      printAreas: { include: { placement: true } },
+    },
   });
 
   invalidateCatalogCache();
@@ -117,9 +118,39 @@ export const createGarmentModel = asyncHandler(async (req: Request, res: Respons
 export const updateGarmentModel = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { name, slug, description, basePrice, frontMockupUrl, backMockupUrl, active, sizeIds, colorIds, colorMockups } = parseGarmentModelPayload(req.body, 'update');
+  const nextSizeIds = Array.isArray(sizeIds)
+    ? sizeIds
+    : (await prisma.garmentModelSize.findMany({ where: { garmentModelId: id }, select: { sizeId: true } })).map((item) => item.sizeId);
+  const nextColorIds = Array.isArray(colorIds)
+    ? colorIds
+    : (await prisma.garmentModelColor.findMany({ where: { garmentModelId: id }, select: { colorId: true } })).map((item) => item.colorId);
 
-  const model = await prisma.$transaction(async (tx) => {
-    await tx.garmentModel.update({
+  const existingBlankStock = Array.isArray(sizeIds) || Array.isArray(colorIds)
+    ? await prisma.blankStock.findMany({
+        where: { garmentModelId: id },
+        select: { id: true, colorId: true, sizeId: true },
+      })
+    : [];
+  const nextBlankStockKeys = new Set(
+    nextColorIds.flatMap((colorId: string) => nextSizeIds.map((sizeId: string) => buildBlankStockKey(colorId, sizeId)))
+  );
+  const blankStockIdsToDelete = existingBlankStock
+    .filter((item) => !nextBlankStockKeys.has(buildBlankStockKey(item.colorId, item.sizeId)))
+    .map((item) => item.id);
+  const existingBlankStockKeys = new Set(existingBlankStock.map((item) => buildBlankStockKey(item.colorId, item.sizeId)));
+  const blankStockToCreate = nextColorIds.flatMap((colorId: string) =>
+    nextSizeIds
+      .filter((sizeId: string) => !existingBlankStockKeys.has(buildBlankStockKey(colorId, sizeId)))
+      .map((sizeId: string) => ({
+        garmentModelId: id,
+        colorId,
+        sizeId,
+        quantity: 0,
+      }))
+  );
+
+  const mutations: Prisma.PrismaPromise<unknown>[] = [
+    prisma.garmentModel.update({
       where: { id },
       data: {
         name,
@@ -130,26 +161,30 @@ export const updateGarmentModel = asyncHandler(async (req: Request, res: Respons
         backMockupUrl,
         active,
       },
-    });
+    }),
+  ];
 
-    if (Array.isArray(sizeIds)) {
-      await tx.garmentModelSize.deleteMany({
+  if (Array.isArray(sizeIds)) {
+    mutations.push(
+      prisma.garmentModelSize.deleteMany({
         where: { garmentModelId: id },
-      });
-      await tx.garmentModelSize.createMany({
+      }),
+      prisma.garmentModelSize.createMany({
         data: sizeIds.map((sizeId: string) => ({
           garmentModelId: id,
           sizeId,
         })),
         skipDuplicates: true,
-      });
-    }
+      })
+    );
+  }
 
-    if (Array.isArray(colorIds)) {
-      await tx.garmentModelColor.deleteMany({
+  if (Array.isArray(colorIds)) {
+    mutations.push(
+      prisma.garmentModelColor.deleteMany({
         where: { garmentModelId: id },
-      });
-      await tx.garmentModelColor.createMany({
+      }),
+      prisma.garmentModelColor.createMany({
         data: colorIds.map((colorId: string) => {
           const colorMockup = Array.isArray(colorMockups) ? colorMockups.find((item: any) => item?.colorId === colorId) : null;
           return {
@@ -160,63 +195,37 @@ export const updateGarmentModel = asyncHandler(async (req: Request, res: Respons
           };
         }),
         skipDuplicates: true,
-      });
-    }
+      })
+    );
+  }
 
-    if (Array.isArray(sizeIds) || Array.isArray(colorIds)) {
-      const nextSizeIds = Array.isArray(sizeIds)
-        ? sizeIds
-        : (await tx.garmentModelSize.findMany({ where: { garmentModelId: id }, select: { sizeId: true } })).map((item) => item.sizeId);
-      const nextColorIds = Array.isArray(colorIds)
-        ? colorIds
-        : (await tx.garmentModelColor.findMany({ where: { garmentModelId: id }, select: { colorId: true } })).map((item) => item.colorId);
+  if (blankStockIdsToDelete.length) {
+    mutations.push(
+      prisma.blankStock.deleteMany({
+        where: { id: { in: blankStockIdsToDelete } },
+      })
+    );
+  }
 
-      const existingBlankStock = await tx.blankStock.findMany({
-        where: { garmentModelId: id },
-        select: { id: true, colorId: true, sizeId: true },
-      });
-      const nextBlankStockKeys = new Set(
-        nextColorIds.flatMap((colorId: string) => nextSizeIds.map((sizeId: string) => buildBlankStockKey(colorId, sizeId)))
-      );
-      const blankStockIdsToDelete = existingBlankStock
-        .filter((item) => !nextBlankStockKeys.has(buildBlankStockKey(item.colorId, item.sizeId)))
-        .map((item) => item.id);
+  if (blankStockToCreate.length) {
+    mutations.push(
+      prisma.blankStock.createMany({
+        data: blankStockToCreate,
+        skipDuplicates: true,
+      })
+    );
+  }
 
-      if (blankStockIdsToDelete.length) {
-        await tx.blankStock.deleteMany({
-          where: { id: { in: blankStockIdsToDelete } },
-        });
-      }
+  await prisma.$transaction(mutations);
 
-      const existingBlankStockKeys = new Set(existingBlankStock.map((item) => buildBlankStockKey(item.colorId, item.sizeId)));
-      const blankStockToCreate = nextColorIds.flatMap((colorId: string) =>
-        nextSizeIds
-          .filter((sizeId: string) => !existingBlankStockKeys.has(buildBlankStockKey(colorId, sizeId)))
-          .map((sizeId: string) => ({
-            garmentModelId: id,
-            colorId,
-            sizeId,
-            quantity: 0,
-          }))
-      );
-
-      if (blankStockToCreate.length) {
-        await tx.blankStock.createMany({
-          data: blankStockToCreate,
-          skipDuplicates: true,
-        });
-      }
-    }
-
-    return tx.garmentModel.findUniqueOrThrow({
-      where: { id },
-      include: {
-        category: true,
-        sizes: { include: { size: true } },
-        colors: { include: { color: true } },
-        printAreas: { include: { placement: true } },
-      },
-    });
+  const model = await prisma.garmentModel.findUniqueOrThrow({
+    where: { id },
+    include: {
+      category: true,
+      sizes: { include: { size: true } },
+      colors: { include: { color: true } },
+      printAreas: { include: { placement: true } },
+    },
   });
 
   invalidateCatalogCache();
@@ -244,26 +253,26 @@ export const deleteGarmentModel = asyncHandler(async (req: Request, res: Respons
     return;
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.cartItem.deleteMany({
+  await prisma.$transaction([
+    prisma.cartItem.deleteMany({
       where: { garmentModelId: id },
-    });
-    await tx.blankStock.deleteMany({
+    }),
+    prisma.blankStock.deleteMany({
       where: { garmentModelId: id },
-    });
-    await tx.printArea.deleteMany({
+    }),
+    prisma.printArea.deleteMany({
       where: { garmentModelId: id },
-    });
-    await tx.garmentModelSize.deleteMany({
+    }),
+    prisma.garmentModelSize.deleteMany({
       where: { garmentModelId: id },
-    });
-    await tx.garmentModelColor.deleteMany({
+    }),
+    prisma.garmentModelColor.deleteMany({
       where: { garmentModelId: id },
-    });
-    await tx.garmentModel.delete({
+    }),
+    prisma.garmentModel.delete({
       where: { id },
-    });
-  });
+    }),
+  ]);
 
   invalidateCatalogCache();
   res.json({ message: 'Modelo de prenda eliminado.' });
@@ -506,21 +515,19 @@ export const deleteDesign = asyncHandler(async (req: Request, res: Response) => 
     return;
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.designPlacement.deleteMany({
+  await prisma.$transaction([
+    prisma.designPlacement.deleteMany({
       where: { designId: id },
-    });
-
-    await tx.designTransferSize.deleteMany({
+    }),
+    prisma.designTransferSize.deleteMany({
       where: { designId: id },
-    });
-
-    await tx.design.delete({
+    }),
+    prisma.design.delete({
       where: { id },
-    });
+    }),
+  ]);
 
-    invalidateCatalogCache();
-  });
+  invalidateCatalogCache();
 
   res.json({ message: 'Diseño eliminado.' });
 });
@@ -660,6 +667,25 @@ export const createGarmentCategory = asyncHandler(async (req: Request, res: Resp
   res.status(201).json(category);
 });
 
+export const deleteGarmentCategory = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const garmentModelsCount = await prisma.garmentModel.count({
+    where: { categoryId: id },
+  });
+
+  if (garmentModelsCount > 0) {
+    throw new AppError('No podés eliminar una categoría que todavía tiene modelos asociados.', 400);
+  }
+
+  await prisma.category.delete({
+    where: { id },
+  });
+
+  invalidateCatalogCache();
+  res.json({ message: 'Categoría eliminada.' });
+});
+
 export const createSize = asyncHandler(async (req: Request, res: Response) => {
   const { name } = parseNamedEntityPayload(req.body);
 
@@ -739,6 +765,25 @@ export const createDesignCategory = asyncHandler(async (req: Request, res: Respo
 
   invalidateCatalogCache();
   res.status(201).json(category);
+});
+
+export const deleteDesignCategory = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const designsCount = await prisma.design.count({
+    where: { designCategoryId: id },
+  });
+
+  if (designsCount > 0) {
+    throw new AppError('No podés eliminar una categoría de diseño que todavía tiene diseños asociados.', 400);
+  }
+
+  await prisma.designCategory.delete({
+    where: { id },
+  });
+
+  invalidateCatalogCache();
+  res.json({ message: 'Categoría de diseño eliminada.' });
 });
 
 export const createCollection = asyncHandler(async (req: Request, res: Response) => {
@@ -885,15 +930,14 @@ export const updateBrandLogo = asyncHandler(async (req: Request, res: Response) 
   const logoPlacements = await resolveLogoPlacements(placementCodes);
   const logoColors = await resolveLogoColors(colorIds);
 
-  const logo = await prisma.$transaction(async (tx) => {
-    await tx.brandLogoPlacement.deleteMany({
+  await prisma.$transaction([
+    prisma.brandLogoPlacement.deleteMany({
       where: { brandLogoId: id },
-    });
-    await tx.brandLogoColor.deleteMany({
+    }),
+    prisma.brandLogoColor.deleteMany({
       where: { brandLogoId: id },
-    });
-
-    await tx.brandLogo.update({
+    }),
+    prisma.brandLogo.update({
       where: { id },
       data: {
         name,
@@ -914,19 +958,19 @@ export const updateBrandLogo = asyncHandler(async (req: Request, res: Response) 
           })),
         },
       },
-    });
+    }),
+  ]);
 
-    return tx.brandLogo.findUniqueOrThrow({
-      where: { id },
-      include: {
-        placements: {
-          include: { placement: true },
-        },
-        colors: {
-          include: { color: true },
-        },
+  const logo = await prisma.brandLogo.findUniqueOrThrow({
+    where: { id },
+    include: {
+      placements: {
+        include: { placement: true },
       },
-    });
+      colors: {
+        include: { color: true },
+      },
+    },
   });
 
   invalidateCatalogCache();
@@ -936,17 +980,17 @@ export const updateBrandLogo = asyncHandler(async (req: Request, res: Response) 
 export const deleteBrandLogo = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.brandLogoPlacement.deleteMany({
+  await prisma.$transaction([
+    prisma.brandLogoPlacement.deleteMany({
       where: { brandLogoId: id },
-    });
-    await tx.brandLogoColor.deleteMany({
+    }),
+    prisma.brandLogoColor.deleteMany({
       where: { brandLogoId: id },
-    });
-    await tx.brandLogo.delete({
+    }),
+    prisma.brandLogo.delete({
       where: { id },
-    });
-  });
+    }),
+  ]);
 
   invalidateCatalogCache();
   res.json({ message: 'Logo eliminado.' });

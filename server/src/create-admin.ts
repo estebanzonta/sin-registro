@@ -11,10 +11,23 @@ export async function createAdminUser(options: { disconnect?: boolean } = {}) {
 
     const admin = await prisma.user.upsert({
       where: { email: 'admin@example.com' },
-      update: {},
+      update: {
+        firstName: 'Admin',
+        lastName: 'Sistema',
+        city: 'Admin',
+        province: 'Admin',
+        address: 'Panel administrativo',
+        phone: '0000000000',
+      },
       create: {
+        firstName: 'Admin',
+        lastName: 'Sistema',
+        city: 'Admin',
+        province: 'Admin',
+        address: 'Panel administrativo',
         email: 'admin@example.com',
         password: hashedPassword,
+        phone: '0000000000',
         role: 'admin',
       },
     });

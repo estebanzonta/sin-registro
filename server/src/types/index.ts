@@ -8,7 +8,13 @@ export type PlacementSurface = 'front' | 'back' | 'neck' | 'sleeve';
 
 export interface User {
   id: string;
+  firstName: string;
+  lastName: string;
+  city: string;
+  province: string;
+  address: string;
   email: string;
+  phone: string;
   role: UserRole;
   createdAt: Date;
   updatedAt: Date;
@@ -17,6 +23,15 @@ export interface User {
 export interface AuthRequest {
   email: string;
   password: string;
+}
+
+export interface RegisterRequest extends AuthRequest {
+  firstName: string;
+  lastName: string;
+  city: string;
+  province: string;
+  address: string;
+  phone: string;
 }
 
 export interface AuthResponse {

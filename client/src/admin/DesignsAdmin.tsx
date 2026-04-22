@@ -182,6 +182,8 @@ export default function DesignsAdmin() {
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [deletingDesignId, setDeletingDesignId] = useState<string | null>(null);
+  const [deletingDesignCategoryId, setDeletingDesignCategoryId] = useState<string | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -302,6 +304,8 @@ export default function DesignsAdmin() {
 
   async function handleCreateCollection(event: React.FormEvent) {
     event.preventDefault();
+    setSaveError(null);
+    setFeedbackMessage(null);
     await axios.post('/api/admin/collections', {
       name: newCollection.name,
       type: 'capsule',
@@ -312,10 +316,13 @@ export default function DesignsAdmin() {
     invalidateCatalogCache();
     setNewCollection(EMPTY_COLLECTION);
     await loadData();
+    setFeedbackMessage('Capsula creada correctamente.');
   }
 
   async function handleCreateCategory(event: React.FormEvent) {
     event.preventDefault();
+    setSaveError(null);
+    setFeedbackMessage(null);
     await axios.post('/api/admin/design-categories', {
       name: newCategory.name,
       code: newCategory.code.toUpperCase(),
@@ -329,12 +336,37 @@ export default function DesignsAdmin() {
         designCategoryId: current.designCategoryId || designCategories[0]?.id || '',
       }));
     }
+    setFeedbackMessage('Categoria creada correctamente.');
+  }
+
+  async function handleDeleteDesignCategory(category: DesignCategory) {
+    const confirmed = window.confirm(`Eliminar la categoria "${category.name}"?`);
+    if (!confirmed) return;
+
+    setDeletingDesignCategoryId(category.id);
+    setSaveError(null);
+    setFeedbackMessage(null);
+
+    try {
+      const response = await axios.delete(`/api/admin/design-categories/${category.id}`);
+      invalidateCatalogCache();
+      if (form.designCategoryId === category.id && !form.collectionId) {
+        setForm((current) => ({ ...current, designCategoryId: '' }));
+      }
+      await loadData();
+      setFeedbackMessage(response.data?.message || 'Categoria de diseno eliminada correctamente.');
+    } catch (error) {
+      setSaveError(readFriendlyApiError(error, 'No se pudo eliminar la categoria de diseno.'));
+    } finally {
+      setDeletingDesignCategoryId(null);
+    }
   }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
     setSaveError(null);
+    setFeedbackMessage(null);
 
     try {
       const payload = {
@@ -360,6 +392,7 @@ export default function DesignsAdmin() {
       invalidateCatalogCache();
       resetForm(designCategories[0]?.id || '');
       await loadData();
+      setFeedbackMessage(editingDesignId ? 'Diseno actualizado correctamente.' : 'Diseno creado correctamente.');
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const message = error.response?.data?.message || error.response?.data?.error;
@@ -378,6 +411,7 @@ export default function DesignsAdmin() {
 
     setDeletingDesignId(design.id);
     setSaveError(null);
+    setFeedbackMessage(null);
 
     try {
       await axios.delete(`/api/admin/designs/${design.id}`);
@@ -386,6 +420,7 @@ export default function DesignsAdmin() {
         resetForm(designCategories[0]?.id || '');
       }
       await loadData();
+      setFeedbackMessage('Diseno eliminado correctamente.');
     } catch (error) {
       setSaveError(readFriendlyApiError(error, 'No se pudo eliminar el diseño.'));
     } finally {
@@ -399,6 +434,8 @@ export default function DesignsAdmin() {
         <h1 className="text-2xl font-bold text-gray-900">Diseños de marca</h1>
         <p className="mt-1 text-gray-500">Edita estampas fijas por categoría y cápsulas limitadas como modelo de venta separado.</p>
       </div>
+      {feedbackMessage ? <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{feedbackMessage}</div> : null}
+      {saveError ? <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{saveError}</div> : null}
 
       <div className="mb-8 grid gap-6 xl:grid-cols-2">
         <form onSubmit={handleCreateCategory} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -410,6 +447,23 @@ export default function DesignsAdmin() {
             <input className="rounded-xl border border-gray-200 bg-gray-50 p-3 uppercase" placeholder="ANI" value={newCategory.code} onChange={(event) => setNewCategory((current) => ({ ...current, code: event.target.value.toUpperCase() }))} required />
           </div>
           <button className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 font-medium text-white" type="submit">Guardar categoría</button>
+          {designCategories.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {designCategories.map((category) => (
+                <div key={category.id} className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                  <span>{category.name} ({category.code})</span>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-rose-600 disabled:opacity-50"
+                    disabled={deletingDesignCategoryId === category.id}
+                    onClick={() => void handleDeleteDesignCategory(category)}
+                  >
+                    {deletingDesignCategoryId === category.id ? 'Eliminando...' : 'Eliminar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </form>
 
         <form onSubmit={handleCreateCollection} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -572,7 +626,6 @@ export default function DesignsAdmin() {
               {saving ? 'Guardando...' : editingDesignId ? 'Guardar cambios' : 'Guardar diseño'}
             </button>
           </div>
-          {saveError ? <p className="md:col-span-2 text-sm text-rose-600">{saveError}</p> : null}
         </form>
       </div>
 

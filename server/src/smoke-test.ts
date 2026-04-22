@@ -56,7 +56,16 @@ async function main() {
 
     const register = await api<{ token: string; user: { role: string } }>(baseUrl, '/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email: customerEmail, password: customerPassword }),
+      body: JSON.stringify({
+        firstName: 'Smoke',
+        lastName: 'Test',
+        city: 'Test City',
+        province: 'Test Province',
+        address: '123 Test Street',
+        email: customerEmail,
+        password: customerPassword,
+        phone: '1122334455',
+      }),
     });
     assert(register.user.role === 'customer', 'Registered user should have customer role');
 

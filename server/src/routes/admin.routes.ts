@@ -16,10 +16,12 @@ import {
   getCollections,
   createCollection,
   createGarmentCategory,
+  deleteGarmentCategory,
   createSize,
   createColor,
   deleteColor,
   createDesignCategory,
+  deleteDesignCategory,
   uploadAsset,
   getPlacements,
   getBrandLogos,
@@ -62,10 +64,12 @@ adminRoutes.patch('/users/:id/role', updateUserRole);
 adminRoutes.get('/collections', getCollections);
 adminRoutes.post('/collections', createCollection);
 adminRoutes.post('/garment-categories', createGarmentCategory);
+adminRoutes.delete('/garment-categories/:id', deleteGarmentCategory);
 adminRoutes.post('/sizes', createSize);
 adminRoutes.post('/colors', createColor);
 adminRoutes.delete('/colors/:id', deleteColor);
 adminRoutes.post('/design-categories', createDesignCategory);
+adminRoutes.delete('/design-categories/:id', deleteDesignCategory);
 adminRoutes.post('/assets/upload', uploadAsset);
 
 // Production config

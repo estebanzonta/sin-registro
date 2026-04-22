@@ -17,8 +17,14 @@ export default function CustomerAuthPage({
   const location = useLocation();
   const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>('login');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [city, setCity] = useState('');
+  const [province, setProvince] = useState('');
+  const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -43,7 +49,11 @@ export default function CustomerAuthPage({
 
     try {
       const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const response = await axios.post(endpoint, { email, password });
+      const payload =
+        mode === 'login'
+          ? { email, password }
+          : { firstName, lastName, city, province, address, email, password, phone };
+      const response = await axios.post(endpoint, payload);
       const nextSession = response.data as AppSession;
 
       onSessionChange(nextSession);
@@ -58,7 +68,7 @@ export default function CustomerAuthPage({
   return (
     <section className="min-h-screen bg-black px-6 py-10 text-white">
       <div className="mx-auto mb-6 flex max-w-5xl justify-end">
-        <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} tone="dark" />
+        <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} tone="dark" showGuestAuthButton={false} />
       </div>
 
       <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[0.92fr_1.08fr]">
@@ -104,6 +114,54 @@ export default function CustomerAuthPage({
             </p>
 
             <div className="mt-6 space-y-4">
+              {mode === 'register' ? (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <input
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-stone-900/15"
+                      value={firstName}
+                      onChange={(event) => setFirstName(event.target.value)}
+                      placeholder="Nombre *"
+                      autoComplete="given-name"
+                      required
+                    />
+                    <input
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-stone-900/15"
+                      value={lastName}
+                      onChange={(event) => setLastName(event.target.value)}
+                      placeholder="Apellido *"
+                      autoComplete="family-name"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <input
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-stone-900/15"
+                      value={city}
+                      onChange={(event) => setCity(event.target.value)}
+                      placeholder="Ciudad *"
+                      autoComplete="address-level2"
+                      required
+                    />
+                    <input
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-stone-900/15"
+                      value={province}
+                      onChange={(event) => setProvince(event.target.value)}
+                      placeholder="Provincia *"
+                      autoComplete="address-level1"
+                      required
+                    />
+                  </div>
+                  <input
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-stone-900/15"
+                    value={address}
+                    onChange={(event) => setAddress(event.target.value)}
+                    placeholder="Direccion *"
+                    autoComplete="street-address"
+                    required
+                  />
+                </>
+              ) : null}
               <input
                 className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-stone-900/15"
                 type="email"
@@ -122,6 +180,17 @@ export default function CustomerAuthPage({
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 required
               />
+              {mode === 'register' ? (
+                <input
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-stone-900/15"
+                  type="tel"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="Telefono *"
+                  autoComplete="tel"
+                  required
+                />
+              ) : null}
             </div>
 
             {error ? <p className="mt-4 text-sm text-rose-600">{error}</p> : null}

@@ -20,23 +20,25 @@ export default function StorefrontTopBar({
   onLogout,
   cartCount,
   tone = 'dark',
+  showGuestAuthButton = true,
 }: {
   session: AppSession | null;
   onLogout: () => void;
   cartCount?: number;
   tone?: Tone;
+  showGuestAuthButton?: boolean;
 }) {
   const isCustomer = session?.user.role === 'customer';
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       {isCustomer ? (
-        <Link to="/auth" className={navClass(tone)}>
+        <Link to="/orders" className={navClass(tone)}>
           {session.user.email}
         </Link>
       ) : null}
 
-      {!session ? (
+      {!session && showGuestAuthButton ? (
         <Link to="/auth" className={navClass(tone)}>
           Ingresar
         </Link>

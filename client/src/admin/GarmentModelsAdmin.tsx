@@ -92,6 +92,7 @@ export default function GarmentModelsAdmin() {
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [newModel, setNewModel] = useState<ModelFormState>(EMPTY_MODEL_FORM);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
   const [deletingColorId, setDeletingColorId] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -313,6 +314,28 @@ export default function GarmentModelsAdmin() {
     }
   }
 
+  async function handleDeleteCategory(category: Category) {
+    const confirmed = window.confirm(`Eliminar la categoria "${category.name}"?`);
+    if (!confirmed) return;
+
+    setDeletingCategoryId(category.id);
+    setErrorMessage(null);
+    try {
+      const response = await axios.delete(`/api/admin/garment-categories/${category.id}`);
+      invalidateCatalogCache();
+      setFeedbackMessage(response.data?.message || 'Categoria eliminada correctamente.');
+      if (selectedCategoryId === category.id) {
+        setSelectedCategoryId('');
+      }
+      await fetchCatalog();
+      await fetchModels();
+    } catch (error) {
+      setErrorMessage(readFriendlyApiError(error, 'No se pudo eliminar la categoria.'));
+    } finally {
+      setDeletingCategoryId(null);
+    }
+  }
+
   return (
     <div className="animate-in fade-in duration-500">
       <div className="mb-8">
@@ -337,6 +360,23 @@ export default function GarmentModelsAdmin() {
           <button className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 font-medium text-white" type="submit">
             Guardar categoría
           </button>
+          {categories.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <div key={category.id} className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                  <span>{category.name}</span>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-rose-600 disabled:opacity-50"
+                    disabled={deletingCategoryId === category.id}
+                    onClick={() => void handleDeleteCategory(category)}
+                  >
+                    {deletingCategoryId === category.id ? 'Eliminando...' : 'Eliminar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </form>
 
         <form onSubmit={handleCreateSize} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">

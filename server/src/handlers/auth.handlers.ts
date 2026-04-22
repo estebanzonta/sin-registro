@@ -1,11 +1,10 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { authService } from '../services/auth.service.js';
-import { parseAuthRequest } from '../validation/request-validation.js';
+import { parseAuthRequest, parseRegisterRequest } from '../validation/request-validation.js';
 
 export async function registerHandler(body: unknown) {
-  const { email, password } = parseAuthRequest(body);
-  return authService.register({ email, password });
+  return authService.register(parseRegisterRequest(body));
 }
 
 export async function loginHandler(body: unknown) {
@@ -28,7 +27,13 @@ export async function meHandler(userId: string | undefined) {
 
   return {
     id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    city: user.city,
+    province: user.province,
+    address: user.address,
     email: user.email,
+    phone: user.phone,
     role: user.role,
     createdAt: user.createdAt,
   };

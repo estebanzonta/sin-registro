@@ -98,12 +98,15 @@ export default function CartPage({
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [customerName, setCustomerName] = useState('');
+  const [customerName, setCustomerName] = useState(
+    session ? `${session.user.firstName || ''} ${session.user.lastName || ''}`.trim() : ''
+  );
   const [customerEmail, setCustomerEmail] = useState(session?.user.email || '');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<OrderResponse | null>(null);
 
   useEffect(() => {
+    setCustomerName(session ? `${session.user.firstName || ''} ${session.user.lastName || ''}`.trim() : '');
     setCustomerEmail(session?.user.email || '');
   }, [session]);
 
@@ -183,7 +186,7 @@ export default function CartPage({
     return (
       <div className="min-h-screen bg-stone-100 p-6 text-stone-900">
         <div className="mx-auto mb-6 flex max-w-4xl justify-end">
-          <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} tone="light" />
+          <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} tone="light" showGuestAuthButton={false} />
         </div>
         <div className="mx-auto max-w-4xl rounded-3xl bg-white p-8">
           <h1 className="text-3xl font-semibold">Carrito</h1>
@@ -203,7 +206,7 @@ export default function CartPage({
     <div className="min-h-screen bg-stone-100 p-6 text-stone-900">
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex justify-end">
-          <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} tone="light" />
+          <StorefrontTopBar session={session} onLogout={() => onSessionChange(null)} tone="light" showGuestAuthButton={false} />
         </div>
         <div className="flex items-center justify-between">
           <div>

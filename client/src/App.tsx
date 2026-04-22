@@ -10,6 +10,7 @@ import BlankStockAdmin from './admin/BlankStockAdmin';
 import UsersAdmin from './admin/UsersAdmin';
 import ProductionConfigAdmin from './admin/ProductionConfigAdmin';
 import OrdersAdmin from './admin/OrdersAdmin';
+import DashboardAdmin from './admin/DashboardAdmin';
 import CustomizerApp from './customizer/CustomizerApp';
 import CartPage from './storefront/CartPage';
 import CustomerAuthPage from './storefront/CustomerAuthPage';
@@ -17,7 +18,13 @@ import OrdersPage from './storefront/OrdersPage';
 
 type SessionUser = {
   id: string;
+  firstName: string;
+  lastName: string;
+  city: string;
+  province: string;
+  address: string;
   email: string;
+  phone: string;
   role: string;
 };
 
@@ -30,10 +37,38 @@ const SESSION_KEY = 'sr-session';
 export type AppSession = SessionState;
 const SLOW_CLIENT_REQUEST_MS = 400;
 
+function decodeJwtPayload(token: string): { exp?: number } | null {
+  try {
+    const [, payload] = token.split('.');
+    if (!payload) return null;
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    return JSON.parse(atob(normalized)) as { exp?: number };
+  } catch {
+    return null;
+  }
+}
+
+function isSessionExpired(session: SessionState | null) {
+  if (!session?.token) return true;
+  const payload = decodeJwtPayload(session.token);
+  if (!payload?.exp) return false;
+  return payload.exp * 1000 <= Date.now();
+}
+
 function readSession(): SessionState | null {
   try {
     const parsed = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
-    return parsed?.token ? parsed : null;
+    if (!parsed?.token) {
+      return null;
+    }
+
+    if (isSessionExpired(parsed)) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+
+    return parsed;
   } catch {
     return null;
   }
@@ -49,7 +84,7 @@ function applyToken(token: string | null) {
 }
 
 export function persistSession(session: SessionState | null) {
-  if (session) {
+  if (session && !isSessionExpired(session)) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     applyToken(session.token);
     return;
@@ -168,6 +203,8 @@ const Dashboard = () => (
   </div>
 );
 
+void Dashboard;
+
 function AdminShell({ session, onLogout }: { session: SessionState; onLogout: () => void }) {
   return (
     <div className="admin-surface flex min-h-screen w-full bg-gray-50 font-sans text-gray-800">
@@ -236,6 +273,31 @@ export default function App() {
 
   useEffect(() => {
     applyToken(session?.token || null);
+  }, [session]);
+
+  useEffect(() => {
+    if (!session?.token) {
+      return;
+    }
+
+    const payload = decodeJwtPayload(session.token);
+    if (!payload?.exp) {
+      return;
+    }
+
+    const timeoutMs = payload.exp * 1000 - Date.now();
+    if (timeoutMs <= 0) {
+      persistSession(null);
+      setSession(null);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      persistSession(null);
+      setSession(null);
+    }, timeoutMs);
+
+    return () => window.clearTimeout(timeoutId);
   }, [session]);
 
   useEffect(() => {
@@ -309,7 +371,13 @@ export default function App() {
           token: session.token,
           user: {
             id: response.data.id,
+            firstName: response.data.firstName,
+            lastName: response.data.lastName,
+            city: response.data.city,
+            province: response.data.province,
+            address: response.data.address,
             email: response.data.email,
+            phone: response.data.phone,
             role: response.data.role,
           },
         } as SessionState;
@@ -422,7 +490,7 @@ export default function App() {
           }
         />
         <Route path="/admin" element={adminLayout}>
-          <Route index element={<Dashboard />} />
+          <Route index element={<DashboardAdmin />} />
           <Route path="models" element={<GarmentModelsAdmin />} />
           <Route path="designs" element={<DesignsAdmin />} />
           <Route path="stock" element={<BlankStockAdmin />} />

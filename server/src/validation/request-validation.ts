@@ -1,6 +1,6 @@
 import { AppError } from '../middleware/errorHandler.js';
 import type { AddToCartRequest, UpdateCartItemRequest } from '../types/cart.js';
-import type { AuthRequest, ConfiguratorRequest, CustomizationMode, TransferSizeCode } from '../types/index.js';
+import type { AuthRequest, ConfiguratorRequest, CustomizationMode, RegisterRequest, TransferSizeCode } from '../types/index.js';
 import type { CreateOrderRequest, OrderItemData, UpdateOrderStatusRequest } from '../types/order.js';
 
 const VALID_CUSTOMIZATION_MODES: CustomizationMode[] = ['brand_design', 'user_upload'];
@@ -26,6 +26,21 @@ export function parseAuthRequest(body: unknown): AuthRequest {
   return {
     email: asNonEmptyString(payload.email, 'Completá email y contraseña.'),
     password: asNonEmptyString(payload.password, 'Completá email y contraseña.'),
+  };
+}
+
+export function parseRegisterRequest(body: unknown): RegisterRequest {
+  const payload = (body || {}) as Record<string, unknown>;
+
+  return {
+    firstName: asNonEmptyString(payload.firstName, 'Completá todos los datos obligatorios.'),
+    lastName: asNonEmptyString(payload.lastName, 'Completá todos los datos obligatorios.'),
+    city: asNonEmptyString(payload.city, 'Completá todos los datos obligatorios.'),
+    province: asNonEmptyString(payload.province, 'Completá todos los datos obligatorios.'),
+    address: asNonEmptyString(payload.address, 'Completá todos los datos obligatorios.'),
+    email: asNonEmptyString(payload.email, 'Completá todos los datos obligatorios.'),
+    password: asNonEmptyString(payload.password, 'Completá todos los datos obligatorios.'),
+    phone: asNonEmptyString(payload.phone, 'Completá todos los datos obligatorios.'),
   };
 }
 
